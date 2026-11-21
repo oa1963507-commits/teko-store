@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>TEKO STORE — إدارة الطلبات</title>
+<title>TEKO STORE — إدارة الطلبات والتقارير</title>
 <style>
 :root{--red:#dc2645;--ink:#202127;--muted:#747780;--edge:#e6e8ed;--soft:#f6f7f9}
 *{box-sizing:border-box}body{margin:0;font:15px Tahoma,Arial,sans-serif;background:var(--soft);color:var(--ink)}
@@ -32,6 +32,32 @@ code{direction:ltr;display:inline-block;background:#f3f3f4;padding:3px 6px;borde
 .status-select{max-width:170px}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:12px}
 #detailPanel{background:#fff}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.detail-grid p{margin:3px 0;word-break:break-word}
 footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);font-size:12px}
+.owner-tabs{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 18px}
+.owner-tabs button{background:#fff;border:1px solid var(--edge);color:var(--ink);padding:12px 21px}
+.owner-tabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0 19px}
+.kpi{border:1px solid var(--edge);border-radius:12px;padding:18px 15px;background:#fafafa;min-height:125px}
+.kpi-label{font-size:12px;color:var(--muted);display:block;line-height:1.6}
+.kpi-value{font-size:27px;font-weight:900;display:block;margin:12px 0 4px;direction:rtl;font-variant-numeric:tabular-nums}
+.kpi-hint{font-size:11px;color:var(--muted);line-height:1.6}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:15px}
+.report-card{border:1px solid var(--edge);border-radius:11px;padding:15px}
+.report-card h3{font-size:14px;margin:0 0 14px}
+.report-note{font-size:12px;color:var(--muted);line-height:1.8;margin:8px 0 0}
+.flow-row{display:grid;grid-template-columns:105px 1fr 38px;align-items:center;gap:10px;margin:10px 0;font-size:12px}
+.flow-track{height:9px;background:#f0f1f4;border-radius:30px;overflow:hidden}
+.flow-fill{height:100%;background:var(--red);border-radius:30px}
+.trend-bars{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px;align-items:end;min-height:130px}
+.trend-col{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.trend-column{width:100%;background:#fbe1e6;border-radius:7px;min-height:90px;display:flex;align-items:flex-end;overflow:hidden}
+.trend-fill{width:100%;min-height:2px;background:var(--red);border-radius:7px}
+.muted-status{font-size:12px;color:var(--muted);min-height:18px}
+#customersPanel .tools{grid-template-columns:minmax(170px,1fr) auto}
+a.contact-link{color:#ae1d3b;text-decoration:underline}
+@media(max-width:980px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:740px){.report-grid{grid-template-columns:1fr}.kpi{min-height:105px}.kpi-value{font-size:23px}.flow-row{grid-template-columns:85px 1fr 30px}}
+@media(max-width:420px){.kpi-grid{grid-template-columns:1fr 1fr;gap:7px}.kpi{padding:11px}.kpi-value{font-size:20px}}
+
 [hidden]{display:none!important}@media(max-width:740px){.tools{grid-template-columns:1fr}.panel{padding:15px}.detail-grid{grid-template-columns:1fr}header{padding:15px}.row{align-items:stretch}}
 </style>
 </head>
@@ -53,10 +79,39 @@ footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);fo
 </section>
 <section id="appPanel" hidden>
  <div class="panel row between">
-  <div><h1>الطلبات</h1><div class="muted">البيانات مسجلة في Supabase، وليست على هذا الجهاز فقط.</div></div>
+  <div><h1>لوحة إدارة TEKO STORE</h1><div class="muted">الطلبات وملفات الطباعة والعملاء — محفوظة بأمان في Supabase.</div></div>
   <button id="logoutButton" class="alt">تسجيل خروج</button>
  </div>
- <div class="panel">
+ <section id="insightsPanel" class="panel" hidden>
+ <div class="row between">
+  <div><h2>نظرة عامة على المتجر</h2><p class="muted">الأرقام قيم طلبات مبدئية، وليست مبيعات مدفوعة أو إيرادات فعلية.</p></div>
+  <div class="row"><label for="reportPeriod" class="muted">الفترة</label>
+   <select id="reportPeriod" style="width:auto">
+    <option value="7">آخر 7 أيام</option><option value="30" selected>آخر 30 يومًا</option>
+    <option value="90">آخر 90 يومًا</option><option value="0">كل الوقت</option>
+   </select><button type="button" class="alt" id="refreshReports">تحديث</button>
+  </div>
+ </div>
+ <div class="kpi-grid">
+  <div class="kpi"><span class="kpi-label">إجمالي الطلبات</span><strong class="kpi-value" id="statTotalOrders">—</strong><span class="kpi-hint">يشمل الطلبات الملغاة</span></div>
+  <div class="kpi"><span class="kpi-label">طلبات تحتاج متابعة</span><strong class="kpi-value" id="statPendingOrders">—</strong><span class="kpi-hint">جديد + قيد المراجعة</span></div>
+  <div class="kpi"><span class="kpi-label">قيمة الطلبات المبدئية</span><strong class="kpi-value" id="statQuoteTotal">—</strong><span class="kpi-hint">جنيه مصري — باستثناء الملغي</span></div>
+  <div class="kpi"><span class="kpi-label">عملاء مختلفون</span><strong class="kpi-value" id="statCustomers">—</strong><span class="kpi-hint">بحسب رقم الهاتف</span></div>
+ </div>
+ <div class="report-grid">
+  <div class="report-card"><h3>حالات الطلبات</h3><div id="statusBars"></div></div>
+  <div class="report-card"><h3>الطلبات خلال آخر 7 أيام</h3><div class="trend-bars" id="trendBars"></div></div>
+ </div>
+ <div class="row between" style="margin-top:14px">
+  <span class="muted" id="reportSecondary"></span>
+  <span class="muted-status" id="reportStatus" role="status" aria-live="polite"></span>
+ </div>
+</section>
+<nav class="owner-tabs" id="ownerTabs" aria-label="أقسام الإدارة" hidden>
+ <button type="button" id="tabOrders" aria-selected="true">الطلبات</button>
+ <button type="button" id="tabCustomers" aria-selected="false">العملاء</button>
+</nav>
+<div class="panel" id="ordersPanel">
   <div class="row between"><h2>إدارة الطلبات</h2><span class="muted" id="orderCount"></span></div>
   <form class="tools" id="filterForm">
    <input id="searchOrders" placeholder="بحث بالاسم أو رقم الطلب أو الهاتف" aria-label="بحث في الطلبات">
@@ -71,7 +126,10 @@ footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);fo
    </select>
    <button type="submit">بحث / تحديث</button>
   </form>
-  <div id="message" role="status" aria-live="polite"></div>
+  <div class="row between" style="margin-bottom:10px">
+   <div id="message" role="status" aria-live="polite"></div>
+   <button type="button" class="alt" id="exportOrdersBtn" hidden>تصدير الصفحة CSV</button>
+  </div>
   <div class="table-wrap">
    <table><thead><tr>
     <th>رقم الطلب</th><th>تاريخ الطلب</th><th>العميل</th><th>اللون / المقاس</th>
@@ -84,6 +142,25 @@ footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);fo
    <button id="nextPage" type="button" class="alt">التالي</button>
   </div>
  </div>
+ <section class="panel" id="customersPanel" hidden>
+  <div class="row between"><div><h2>العملاء</h2><p class="muted">تجميع العملاء باستخدام رقم الهاتف؛ يعرض تكرار الطلبات وقيمها التقديرية.</p></div>
+   <span id="customerCount" class="muted"></span></div>
+  <form class="tools" id="customerFilterForm">
+   <input id="searchCustomers" placeholder="بحث باسم العميل أو رقم الهاتف" aria-label="بحث عن عميل">
+   <button type="submit">بحث / تحديث</button>
+  </form>
+  <div id="customerStatus" role="status" aria-live="polite" class="muted-status"></div>
+  <div class="table-wrap">
+   <table style="min-width:680px"><thead><tr><th>العميل</th><th>الهاتف</th><th>عدد الطلبات</th>
+    <th>طلبات مفتوحة</th><th>إجمالي المبالغ المبدئية</th><th>آخر طلب</th><th>إجراءات</th></tr></thead>
+    <tbody id="customersBody"></tbody></table>
+  </div>
+  <div class="row between" style="margin-top:15px">
+   <button id="prevCustomerPage" type="button" class="alt">السابق</button>
+   <span id="customerPagination" class="muted">صفحة 1</span>
+   <button id="nextCustomerPage" type="button" class="alt">التالي</button>
+  </div>
+ </section>
  <section class="panel" id="detailPanel" hidden>
   <div class="row between"><h2>تفاصيل الطلب</h2><button id="closeDetail" class="alt" type="button">إغلاق</button></div>
   <div class="detail-grid" id="detailContent"></div>
@@ -93,7 +170,7 @@ footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);fo
 </section>
 </main>
 <footer>TEKO STORE · لوحة إدارة خاصة · الأرقام الظاهرة من العميل عروض سعر مبدئية وليست مدفوعات مؤكدة</footer>
-<script src="owner-config.js?v=25"></script>
-<script src="owner.js?v=25"></script>
+<script src="owner-config.js?v=28"></script>
+<script src="owner.js?v=28"></script>
 </body>
 </html>

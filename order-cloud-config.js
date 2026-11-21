@@ -4,6 +4,7 @@
 window.TEKO_CLOUD = {
   provider: 'supabase',
   enabled: true, // Live private Supabase storage with signed 7-day download URLs.
+  databaseOrdersEnabled: false, // Enable only AFTER SQL migration and Edge Function redeploy are verified.
   previewEnabled: false, // Hide test-only tools on the public storefront.
   functionUrl: 'https://kopsyfhpcilafuesgjti.supabase.co/functions/v1/teko-order-link',
   supabaseOrigin: 'https://kopsyfhpcilafuesgjti.supabase.co',

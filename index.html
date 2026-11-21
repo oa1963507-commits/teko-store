@@ -98,7 +98,7 @@
 @media(max-width:800px){.stageactions{flex-wrap:wrap}.draft-status{max-width:100%;width:100%;text-align:right}}
 </style>
 <link rel="stylesheet" href="storefront.css?v=35">
-<link rel="stylesheet" href="mobile.css?v=36">
+<link rel="stylesheet" href="mobile.css?v=39">
 </head>
 <body>
 <header class="site-header">
@@ -107,10 +107,25 @@
   <a href="#home" data-route="home">الرئيسية</a>
   <a href="#studio" data-route="studio">استوديو التصميم</a>
   <a href="#designs" data-route="studio">معرض التصميمات</a>
+  <button id="installAppBtn" class="install-app-option" type="button" aria-haspopup="dialog" aria-controls="installHelp">
+   <span class="install-app-icon" aria-hidden="true">↓</span>
+   <span class="install-app-copy"><strong id="installActionLabel">تثبيت TEKO كتطبيق</strong><small id="installActionHint">على شاشة موبايلك بأيقونة TEKO</small></span>
+  </button>
  </nav>
  <button class="site-menu-toggle" id="mobileMenuToggle" type="button" aria-controls="siteNav" aria-expanded="false" aria-label="فتح القائمة"><span class="menu-bars" aria-hidden="true"></span></button>
  <a class="site-cart-btn" href="#cart" data-route="cart" aria-label="الانتقال لسلة مشترياتك">السلة <span class="cart-counter" id="cartCount">0</span></a>
 </header>
+<div id="installHelp" class="install-help-overlay" hidden>
+ <section class="install-help-dialog" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle" aria-describedby="installHelpText" tabindex="-1">
+  <button id="installHelpClose" class="install-help-close" type="button" aria-label="إغلاق تعليمات التثبيت">×</button>
+  <img class="install-help-logo" src="icons/icon-192.png" width="72" height="72" alt="أيقونة TEKO STORE">
+  <h2 id="installHelpTitle">ثبّت TEKO STORE على موبايلك</h2>
+  <p id="installHelpText">تقدر تضيف الموقع للشاشة الرئيسية وتفتحه من الأيقونة زي أي تطبيق.</p>
+  <ol id="installHelpSteps" class="install-help-steps"></ol>
+  <p class="install-help-note">مش محتاج ملف APK أو تحميل من متجر التطبيقات. التثبيت والإضافة للشاشة الرئيسية بيتموا من المتصفح.</p>
+  <button id="installHelpDone" class="install-help-done" type="button">فهمت</button>
+ </section>
+</div>
 <nav class="mobile-dock" aria-label="التنقل السريع على الهاتف">
  <a href="#home" data-route="home"><span class="dock-icon" aria-hidden="true">⌂</span><span>الرئيسية</span></a>
  <a href="#studio" data-route="studio"><span class="dock-icon" aria-hidden="true">✦</span><span>صمّم هوديك</span></a>
@@ -252,6 +267,6 @@
 <script src="app.js?v=33"></script>
 <script src="drafts.js?v=16"></script>
 <script src="cart.js?v=33"></script>
-<script src="mobile.js?v=36"></script>
+<script src="mobile.js?v=39"></script>
 
 </body></html>

@@ -154,7 +154,8 @@ async function storageInventory(admin: ReturnType<typeof adminClient>) {
     examined+=objects.length;
     for(const item of objects){
       if(!item.id||!zipName(item.name))continue;
-      const sizeRaw=Number(item.metadata?.size ?? (item as {size?:unknown}).size);
+      const rawSize=item.metadata?.size ?? (item as {size?:unknown}).size;
+      const sizeRaw=rawSize==null||rawSize===""?NaN:Number(rawSize);
       const sizeBytes=Number.isFinite(sizeRaw)&&sizeRaw>=0?sizeRaw:null;
       if(sizeBytes===null)unknownSizeCount++;
       const createdAt=String(item.created_at||"");
@@ -330,7 +331,7 @@ Deno.serve(async req=>{
       const {data,error:downloadError}=await admin.storage.from(BUCKET)
         .createSignedUrl(order.storage_path,15*60,{download:"TEKO-ORDER.zip"});
       if(downloadError||!data?.signedUrl)return reply(origin,{
-        error:"ZIP unavailable; it may have been removed after 7 days"
+        error:"ZIP unavailable; the file may have been deleted manually or after the retention period"
       },404);
       return reply(origin,{downloadUrl:data.signedUrl,expiresInSeconds:900});
     }

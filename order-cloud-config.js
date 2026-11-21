@@ -3,6 +3,7 @@
 // Safe staging: until the public Turnstile Site Key is set, orders use local ZIP fallback.
 window.TEKO_CLOUD = {
   provider: 'supabase',
+  enabled: false, // Keep regular customer checkout on the existing fallback until end-to-end tests pass.
   functionUrl: 'https://kopsyfhpcilafuesgjti.supabase.co/functions/v1/teko-order-link',
   supabaseOrigin: 'https://kopsyfhpcilafuesgjti.supabase.co',
   turnstileSiteKey: '' // Paste the Cloudflare Turnstile PUBLIC site key after the backend is ready.

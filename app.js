@@ -805,6 +805,9 @@ function recordOrder(code){
 }
 // V13: upload ZIP first; add a real signed download URL to the owner WhatsApp message.
 const ORDER_CLOUD=window.TEKO_CLOUD||{};
+const ORDER_DB_TEST=ORDER_CLOUD.databaseOrdersPreview===true&&
+  new URLSearchParams(window.location.search).get('tekoDbTest')==='1';
+const ORDER_DB_REGISTRATION=ORDER_CLOUD.databaseOrdersEnabled===true||ORDER_DB_TEST;
 const CLOUD_URL=String(ORDER_CLOUD.functionUrl||ORDER_CLOUD.workerUrl||'').replace(/\/+$/,'');
 const CLOUD_ACTIVE=(()=>{
  try{
@@ -967,9 +970,12 @@ async function uploadZipForSupabase(code,testingZip=null){
  };
  // Central order registration stays off until the private database table
  // and updated Edge Function are both deployed and tested.
- if(ORDER_CLOUD.databaseOrdersEnabled===true)finishPayload.order=orderObject(code);
+ if(ORDER_DB_REGISTRATION){
+  finishPayload.order=orderObject(code);
+  if(ORDER_DB_TEST)finishPayload.order.test=true;
+ }
  const result=await supabaseAction('finish',finishPayload);
- if(ORDER_CLOUD.databaseOrdersEnabled===true&&result.registered!==true)
+ if(ORDER_DB_REGISTRATION&&result.registered!==true)
   throw new Error('الملف اتّرفع لكن تسجيل الطلب في قاعدة البيانات لم يتأكد. لم تُرسل رسالة ببيانات غير مكتملة.');
  assertCloudNotCancelled();
  requireCloudTime(0);
@@ -1016,8 +1022,9 @@ $('whatsappBtn').addEventListener('click',async()=>{
   $('cloudSecurity').scrollIntoView({behavior:'smooth',block:'center'});
   return;
  }
- // Open in the user gesture, before awaiting the upload, to avoid popup blockers.
- const tab=window.open('about:blank','_blank');
+ // Don't open WhatsApp during a database-registration test.
+ // Normal customers retain the existing automatic WhatsApp handoff.
+ const tab=ORDER_DB_TEST?null:window.open('about:blank','_blank');
  if(tab){
   try{
    tab.opener=null;
@@ -1033,11 +1040,17 @@ $('whatsappBtn').addEventListener('click',async()=>{
  try{
   const link=await uploadZipForOrder(code);
   recordOrder(code);
-  const wa='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code,link));
-  cloudMessage('✓ تم الرفع وربط ملف الطلب بواتساب خلال '+Math.round((Date.now()-startedAt)/1000)+' ثانية.');
-  if(tab&&!tab.closed)tab.location.replace(wa);
-  else window.location.href=wa;
-  notify('تم رفع ZIP وإنشاء رابط تحميل حقيقي للمالك داخل رسالة واتساب.');
+  if(ORDER_DB_TEST){
+   cloudMessage('✓ تم تسجيل طلب الاختبار رقم '+code+' في قاعدة بيانات Supabase خلال '+
+    Math.round((Date.now()-startedAt)/1000)+' ثانية. افتح لوحة المالك واضغط بحث / تحديث. لم يتم فتح واتساب.');
+   notify('نجح تسجيل طلب تجريبي في قاعدة البيانات: '+code);
+  }else{
+   const wa='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code,link));
+   cloudMessage('✓ تم الرفع وربط ملف الطلب بواتساب خلال '+Math.round((Date.now()-startedAt)/1000)+' ثانية.');
+   if(tab&&!tab.closed)tab.location.replace(wa);
+   else window.location.href=wa;
+   notify('تم رفع ZIP وإنشاء رابط تحميل حقيقي للمالك داخل رسالة واتساب.');
+  }
  }catch(error){
   // On the production route only, honor the one-minute budget with an honest
   // downloadable local ZIP fallback. In preview mode expose the cloud failure
@@ -1067,6 +1080,16 @@ $('whatsappBtn').addEventListener('click',async()=>{
  }
 });
 setupOrderCloud();
+if(CLOUD_ACTIVE&&ORDER_DB_TEST){
+ const banner=document.createElement('div');
+ banner.className='notice';
+ banner.setAttribute('role','status');
+ banner.style.marginTop='9px';
+ banner.textContent='🧪 وضع اختبار قاعدة البيانات: هذا الطلب سيتم رفعه وتسجيله كطلب تجريبي. لن تُفتح رسالة واتساب، ولن تتأثر طلبات العملاء على الرابط العادي.';
+ const cloudNotice=$('cloudNotice');
+ if(cloudNotice)cloudNotice.replaceChildren(banner);
+ cloudMessage('وضع اختبار تسجيل طلب في Supabase: أكمل تحقق Cloudflare، واملأ بيانات تجريبية غير حساسة، ثم اضغط زر تجهيز الطلب.');
+}
 if(CLOUD_ACTIVE&&ORDER_CLOUD.enabled!==true){
  cloudMessage('وضع اختبار Supabase — الطلبات الحقيقية على الرابط العادي لم تتغير. أكمل التحقق وجرب ملف ZIP صغيرًا.');
  const tester=$('testCloudZipBtn'),report=$('cloudTestReport'),download=$('testCloudDownload');

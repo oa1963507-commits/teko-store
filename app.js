@@ -751,7 +751,30 @@ reviewModal.addEventListener('click',e=>{if(e.target===reviewModal)closeReview()
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!reviewModal.hidden)closeReview()});
 $('reviewWhatsapp').addEventListener('click',()=>{$('whatsappBtn').click()});
 
-function orderMessage(code){const qty=Math.max(1,parseInt($('quantity').value)||1);return `🛍️ طلب جديد — TEKO STORE\nرقم الطلب: ${code}\nالعميل: ${$('customerName').value.trim()||'غير محدد'}\nهاتف: ${$('customerPhone').value.trim()||'غير محدد'}\nالمنتج: Oversize Hoodie\nاللون: ${color[0]}\nالمقاس: ${size}\nالكمية: ${qty}\nسعر القطعة: ${price()} جنيه${store.discount?' (خصم '+store.discount+'%)':''}\nالإجمالي قبل الشحن: ${qty*price()} جنيه\n\nتفاصيل الطباعة:\n${designs.map((d,i)=>`${i+1}. ${VIEW_NAMES[d.view]} — ${d.kind==='text'?'عبارة: '+d.text:'تصميم: '+d.sourceName} — عرض ${(+d.w).toFixed(1)} سم × ارتفاع ${(+d.h).toFixed(1)} سم — الموضع النسبي (${(d.x*100).toFixed(1)}%, ${(d.y*100).toFixed(1)}%)${d.kind==='text'?' — الخط '+d.font+' — اللون '+d.color:''}`).join('\n')||'بدون طباعة'}\n\nالعنوان: ${$('address').value.trim()||'لم يُحدد'}\nالملاحظات: ${$('notes').value.trim()||'لا يوجد'}\n\nأرفق TEKO-ORDER ZIP على واتساب كمستند Document للحفاظ على شفافية ملفات PNG الأصلية، وليس كصورة من المعرض.`}
+function orderMessage(code, downloadUrl=''){
+ const qty=Math.max(1,parseInt($('quantity').value)||1);
+ const artwork=designs.map((d,i)=>(
+  (i+1)+'. '+VIEW_NAMES[d.view]+' — '+(d.kind==='text'?'عبارة: '+d.text:'تصميم: '+d.sourceName)+
+  ' — عرض '+(+d.w).toFixed(1)+' سم × ارتفاع '+(+d.h).toFixed(1)+' سم'+
+  ' — الموضع النسبي ('+(d.x*100).toFixed(1)+'%, '+(d.y*100).toFixed(1)+'%)'+
+  (d.kind==='text'?' — الخط '+d.font+' — اللون '+d.color:'')
+ )).join('\n')||'بدون طباعة';
+ const attachment=downloadUrl
+  ?'\n\n📦 رابط تحميل ملف الطلب ZIP (يشمل الصور الأصلية والموكابات والمقاسات):\n'+downloadUrl+
+   '\nالرابط مؤقت ومخصص لهذا الطلب؛ لا تشاركه خارج فريق المتجر.'
+  :'\n\nملف ZIP غير مرفوع للتخزين السحابي حتى الآن؛ يتم إرساله يدويًا كمستند WhatsApp.';
+ return '🛍️ طلب جديد — TEKO STORE\n'+
+  'رقم الطلب: '+code+'\n'+
+  'العميل: '+($('customerName').value.trim()||'غير محدد')+'\n'+
+  'هاتف: '+($('customerPhone').value.trim()||'غير محدد')+'\n'+
+  'المنتج: Oversize Hoodie\n'+
+  'اللون: '+color[0]+'\nالمقاس: '+size+'\nالكمية: '+qty+'\n'+
+  'سعر القطعة: '+price()+' جنيه'+(store.discount?' (خصم '+store.discount+'%)':'')+'\n'+
+  'الإجمالي قبل الشحن: '+qty*price()+' جنيه\n\n'+
+  'تفاصيل الطباعة:\n'+artwork+'\n\n'+
+  'العنوان: '+($('address').value.trim()||'لم يُحدد')+'\n'+
+  'الملاحظات: '+($('notes').value.trim()||'لا يوجد')+attachment;
+}
 function validateOrder(){if(hasErrors()){notify('ممنوع تأكيد طلب داخل منطقة الطباعة المحظورة');return false}if(!$('customerName').value.trim()){notify('اكتب اسم العميل أولًا');$('customerName').focus();return false}if(!/^01\d{9}$/.test($('customerPhone').value.trim())){notify('اكتب رقم موبايل مصري صحيح (11 رقم)');$('customerPhone').focus();return false}return true}
 function recordOrder(code){
  const item={code,date:new Date().toISOString(),name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),qty:Math.max(1,+$('quantity').value||1),color:color[0],size,total:price()*Math.max(1,+$('quantity').value||1),views:[...new Set(designs.map(d=>d.view))]};
@@ -759,7 +782,115 @@ function recordOrder(code){
  if(found>=0)store.orders[found]=item;else store.orders.unshift(item);
  persist();renderOrders();
 }
-$('whatsappBtn').addEventListener('click',()=>{if(!validateOrder())return;const code=orderCode();recordOrder(code);const msg=orderMessage(code);window.open('https://wa.me/201557229102?text='+encodeURIComponent(msg),'_blank','noopener');notify('تم فتح رسالة واتساب. الصور تحتاج إرفاقها يدويًا أو ربط تخزين سحابي.');});
+// V13: upload ZIP first; add a real signed download URL to the owner WhatsApp message.
+const ORDER_CLOUD=window.TEKO_CLOUD||{};
+const CLOUD_URL=(ORDER_CLOUD.workerUrl||'').replace(/\/+$/,'');
+const CLOUD_ACTIVE=(()=>{
+ try{
+  const url=new URL(CLOUD_URL);
+  return url.protocol==='https:'&&!!ORDER_CLOUD.turnstileSiteKey;
+ }catch{return false}
+})();
+let turnstileToken=null,turnstileWidget=null,cloudUploading=false;
+function cloudMessage(text){
+ const el=$('cloudStatus');if(el)el.textContent=text;
+}
+function refreshChallenge(){
+ turnstileToken=null;
+ if(window.turnstile&&turnstileWidget!==null){
+  try{window.turnstile.reset(turnstileWidget)}catch{}
+ }
+}
+function setupOrderCloud(){
+ if(!CLOUD_ACTIVE){
+  cloudMessage('التخزين السحابي لم يتم ربطه بعد؛ رابط التحميل التلقائي غير متاح حاليًا. يفضل تنزيل ZIP وإرساله يدويًا.');
+  return;
+ }
+ $('cloudSecurity').hidden=false;
+ cloudMessage('قبل إرسال الطلب، أكمل التحقق الأمني لرفع ملف ZIP وتوليد رابط التحميل.');
+ const js=document.createElement('script');
+ js.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+ js.async=true;
+ js.onload=()=>{
+  if(!window.turnstile){cloudMessage('تعذر تحميل التحقق الأمني؛ جرّب تعطيل مانع الإعلانات أو تحديث الصفحة.');return}
+  try{
+   turnstileWidget=window.turnstile.render('#cloudTurnstile',{
+    sitekey:ORDER_CLOUD.turnstileSiteKey,
+    callback(token){turnstileToken=token;cloudMessage('التحقق جاهز. عند إرسال الطلب سيتم رفع ZIP وإضافة رابطه إلى رسالة واتساب.')},
+    'expired-callback'(){turnstileToken=null;cloudMessage('انتهت صلاحية التحقق؛ أكمله مرة أخرى.')},
+    'error-callback'(){turnstileToken=null;cloudMessage('تعذر التحقق الأمني؛ حاول مرة أخرى.')}
+   });
+  }catch(error){cloudMessage('تعذر إعداد التحقق الأمني: '+(error.message||'خطأ'))}
+ };
+ js.onerror=()=>cloudMessage('تعذر تحميل خدمة التحقق الأمني. راجع اتصال الإنترنت.');
+ document.head.appendChild(js);
+}
+async function uploadZipForOrder(code){
+ const zip=await buildOrderPackage(code);
+ if(zip.size>20*1024*1024)throw new Error('ملف الطلب أكبر من 20 ميجابايت؛ قلّل الصور أو تواصل مع المتجر.');
+ cloudMessage('جاري رفع ملف الطلب ZIP إلى التخزين السحابي...');
+ const response=await fetch(CLOUD_URL+'/upload',{
+  method:'POST',
+  headers:{
+   'Content-Type':'application/zip',
+   'X-TEKO-Turnstile':turnstileToken
+  },
+  body:zip
+ });
+ let payload;
+ try{payload=await response.json()}catch{throw new Error('الرد من خدمة التخزين غير صالح')}
+ if(!response.ok)throw new Error(payload.error||'تعذر رفع ملف الطلب');
+ const url=new URL(payload.downloadUrl);
+ if(url.protocol!=='https:'||url.origin!==new URL(CLOUD_URL).origin||!url.pathname.startsWith('/download/')){
+  throw new Error('خدمة التخزين لم تُرجع رابط تحميل صالحًا');
+ }
+ return url.toString();
+}
+$('whatsappBtn').addEventListener('click',async()=>{
+ if(!validateOrder()||cloudUploading||packageBusy)return;
+ const code=orderCode();
+ if(!CLOUD_ACTIVE){
+  recordOrder(code);
+  window.open('https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code)),'_blank','noopener');
+  notify('رابط التحميل التلقائي غير مفعّل. نزّل ZIP وأرسله كمستند حتى يتم توصيل التخزين السحابي.');
+  return;
+ }
+ if(!turnstileToken){
+  notify('أكمل التحقق الأمني أسفل زر واتساب قبل إرسال الطلب.');
+  $('cloudSecurity').scrollIntoView({behavior:'smooth',block:'center'});
+  return;
+ }
+ // Open in the user gesture, before awaiting the upload, to avoid popup blockers.
+ const tab=window.open('about:blank','_blank');
+ if(tab){
+  try{
+   tab.opener=null;
+   tab.document.title='TEKO STORE — جاري تجهيز الطلب';
+   tab.document.body.innerHTML='<p style="font:18px Tahoma,sans-serif;text-align:center;margin-top:15vh" dir="rtl">جاري رفع ملفات الطلب وإعداد رسالة واتساب... يمكن الرجوع للمتجر حتى يكتمل الرفع.</p>';
+  }catch{}
+ }
+ cloudUploading=true;
+ const button=$('whatsappBtn'),oldLabel=button.textContent;
+ button.disabled=true;button.textContent='جاري رفع الطلب وتجهيز الرابط...';
+ try{
+  const link=await uploadZipForOrder(code);
+  recordOrder(code);
+  const wa='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code,link));
+  cloudMessage('اتجهز رابط التحميل بنجاح وتم إدراجه في رسالة واتساب.');
+  if(tab&&!tab.closed)tab.location.replace(wa);
+  else window.location.href=wa;
+  notify('تم رفع ZIP وإنشاء رابط تحميل حقيقي للمالك داخل رسالة واتساب.');
+ }catch(error){
+  if(tab&&!tab.closed)tab.close();
+  cloudMessage('لم يكتمل رفع الملف؛ لم تُرسل رسالة برابط غير صالح. '+(error.message||''));
+  notify('فشل رفع ملف الطلب: '+(error.message||'جرّب مرة أخرى'));
+ }finally{
+  refreshChallenge();
+  cloudUploading=false;
+  button.disabled=false;button.textContent=oldLabel;
+ }
+});
+setupOrderCloud();
 $('shareBtn').addEventListener('click',async()=>{
  if(!validateOrder()||packageBusy)return;
  const code=orderCode();

@@ -962,9 +962,15 @@ async function uploadZipForSupabase(code,testingZip=null){
  assertCloudNotCancelled();
  requireCloudTime(800);
  cloudMessage('تم رفع الملف، جاري إصدار رابط التحميل...');
- const result=await supabaseAction('finish',{
+ const finishPayload={
   path:request.path,size:zip.size,expires:request.expires,proof:request.proof
- });
+ };
+ // Central order registration stays off until the private database table
+ // and updated Edge Function are both deployed and tested.
+ if(ORDER_CLOUD.databaseOrdersEnabled===true)finishPayload.order=orderObject(code);
+ const result=await supabaseAction('finish',finishPayload);
+ if(ORDER_CLOUD.databaseOrdersEnabled===true&&result.registered!==true)
+  throw new Error('الملف اتّرفع لكن تسجيل الطلب في قاعدة البيانات لم يتأكد. لم تُرسل رسالة ببيانات غير مكتملة.');
  assertCloudNotCancelled();
  requireCloudTime(0);
  const link=new URL(result.downloadUrl||'');

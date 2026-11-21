@@ -169,11 +169,32 @@ async function openDetail(id){
    ["الحالة",statusLabels[o.status]||o.status]
   ];
   for(const [k,v] of facts)addFact(grid,k,v);
+  // V33: a cart checkout stores several customizations in one verified ZIP/order.
+  // Show each cart line separately without exposing source data URLs in the UI.
+  const cartLines=Array.isArray(details.items)?details.items:[];
+  if(cartLines.length){
+   const heading=document.createElement("h3");
+   heading.textContent="تفاصيل عناصر السلة ("+cartLines.length+")";
+   designs.append(heading);
+   for(const [index,item] of cartLines.entries()){
+    const entry=document.createElement("p");
+    entry.className="notice";
+    const qty=Number(item.quantity)||0;
+    entry.textContent=(index+1)+". هودي "+String(item.color||"")+
+      " / "+String(item.size||"")+" — "+qty+" قطعة"+
+      " — إجمالي مبدئي "+Number(item.total||0).toLocaleString("ar-EG")+" ج.م"+
+      " — عدد عناصر الطباعة "+(Array.isArray(item.designs)?item.designs.length:0);
+    designs.append(entry);
+   }
+   const subheading=document.createElement("h3");
+   subheading.textContent="تفاصيل أماكن الطباعة";
+   designs.append(subheading);
+  }
   const arr=Array.isArray(details.designs)?details.designs:[];
-  if(!arr.length){designs.textContent="لا توجد بيانات عناصر طباعة محفوظة.";return;}
+  if(!arr.length){const empty=document.createElement("p");empty.textContent="لا توجد عناصر طباعة إضافية محفوظة.";designs.append(empty);return;}
   for(const d of arr){
    const block=document.createElement("p");
-   block.textContent=(d.viewArabic||d.view||"")+
+   block.textContent=(d.itemIndex?"الهودي "+d.itemIndex+" — ":"")+(d.viewArabic||d.view||"")+
     " — "+(d.name||d.text||"تصميم")+
     " — "+(d.widthCm??"—")+" × "+(d.heightCm??"—")+" سم"+
     " — الموضع "+(d.relativePosition?.x??"—")+" / "+(d.relativePosition?.y??"—");

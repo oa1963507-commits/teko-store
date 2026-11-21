@@ -39,18 +39,84 @@ function persist(){try{localStorage.setItem('teko-store-demo',JSON.stringify(sto
 function notify(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',3500)}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
 function id(){return 'd'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+// V5: photo-calibrated approximation of printable parts (torso and sleeves).
+// These guides are deliberately conservative; precise production calibration is still required.
+const PRINT_SURFACES={
+ front:[
+  [[.25,.255],[.75,.255],[.77,.43],[.76,.79],[.24,.79],[.23,.44]],
+  [[.17,.305],[.265,.335],[.287,.48],[.261,.68],[.266,.80],[.226,.844],[.119,.844],[.064,.786],[.065,.62],[.105,.43]],
+  [[.83,.305],[.735,.335],[.713,.48],[.739,.68],[.734,.80],[.774,.844],[.881,.844],[.936,.786],[.935,.62],[.895,.43]]
+ ],
+ back:[
+  [[.25,.265],[.75,.265],[.77,.43],[.76,.79],[.24,.79],[.23,.44]],
+  [[.17,.305],[.265,.335],[.287,.48],[.261,.68],[.266,.80],[.226,.844],[.119,.844],[.064,.786],[.065,.62],[.105,.43]],
+  [[.83,.305],[.735,.335],[.713,.48],[.739,.68],[.734,.80],[.774,.844],[.881,.844],[.936,.786],[.935,.62],[.895,.43]]
+ ],
+ left:[
+  [[.435,.255],[.605,.275],[.658,.44],[.660,.63],[.613,.805],[.55,.848],[.44,.841],[.408,.748],[.419,.53]],
+  [[.315,.36],[.422,.36],[.415,.53],[.408,.72],[.32,.73],[.284,.65]]
+ ],
+ right:[
+  [[.395,.275],[.565,.255],[.581,.53],[.592,.748],[.56,.841],[.45,.848],[.387,.805],[.34,.63],[.342,.44]],
+  [[.578,.36],[.685,.36],[.716,.65],[.68,.73],[.592,.72],[.585,.53]]
+ ]
+};
 const areas={
- front:[{x:.290,y:.566,w:.420,h:.205,label:'الجيب الأمامي'},{x:.375,y:.210,w:.252,h:.043,label:'خياطة الرقبة'},{x:.135,y:.817,w:.116,h:.075,label:'منطقة التطريز والحياكة'},{x:.765,y:.817,w:.111,h:.075,label:'منطقة التطريز والحياكة'}],
- back:[{x:.335,y:.132,w:.330,h:.145,label:'الكابيشو والخياطة'},{x:.490,y:.130,w:.018,h:.275,label:'خياطة منتصف الخلف'},{x:.155,y:.832,w:.105,h:.052,label:'حياكة طرف الكم'},{x:.743,y:.832,w:.116,h:.052,label:'حياكة طرف الكم'}],
- left:[{x:.410,y:.290,w:.230,h:.080,label:'خياطة الكتف'},{x:.398,y:.820,w:.210,h:.066,label:'حياكة الكفة'},{x:.570,y:.547,w:.155,h:.220,label:'الجيب الجانبي'}],
- right:[{x:.405,y:.284,w:.242,h:.080,label:'خياطة الكتف'},{x:.380,y:.825,w:.225,h:.060,label:'حياكة الكفة'},{x:.270,y:.540,w:.142,h:.226,label:'الجيب الجانبي'}]
+ front:[
+  {x:.284,y:.558,w:.433,h:.237,label:'الجيب الأمامي'},
+  {x:.382,y:.208,w:.237,h:.051,label:'خياطة الرقبة'},
+  {x:.240,y:.806,w:.520,h:.071,label:'حياكة أسفل الهودي'},
+  {x:.090,y:.810,w:.170,h:.062,label:'كفة الكم'},
+  {x:.740,y:.810,w:.170,h:.062,label:'كفة الكم'},
+  {x:.158,y:.330,w:.124,h:.024,label:'خياطة الكتف'},
+  {x:.718,y:.330,w:.124,h:.024,label:'خياطة الكتف'}
+ ],
+ back:[
+  {x:.305,y:.080,w:.392,h:.201,label:'الكابيشو'},
+  {x:.396,y:.277,w:.208,h:.067,label:'خياطة أسفل الكابيشو'},
+  {x:.245,y:.807,w:.510,h:.070,label:'حياكة أسفل الهودي'},
+  {x:.096,y:.811,w:.166,h:.063,label:'كفة الكم'},
+  {x:.740,y:.811,w:.166,h:.063,label:'كفة الكم'}
+ ],
+ left:[
+  {x:.403,y:.309,w:.257,h:.041,label:'خياطة أعلى الكم'},
+  {x:.405,y:.822,w:.210,h:.071,label:'كفة الكم'},
+  {x:.266,y:.558,w:.154,h:.196,label:'الجيب'}
+ ],
+ right:[
+  {x:.338,y:.309,w:.259,h:.041,label:'خياطة أعلى الكم'},
+  {x:.385,y:.822,w:.210,h:.071,label:'كفة الكم'},
+  {x:.588,y:.558,w:.156,h:.196,label:'الجيب'}
+ ]
 };
 function scaleW(){return .66/SIZES[size][0]}
 function getBounds(d){const w=d.w*scaleW(),h=d.h*scaleW()*(1122/1402);return{x:d.x,y:d.y,w,h}}
 function textSize(d,displayWidth){const b=getBounds(d),boxW=b.w*displayWidth,boxH=b.h*displayWidth*1402/1122,chars=Array.from(d.text||'A').length;return Math.max(8,Math.min(boxH*.74,boxW/Math.max(1,chars*.62)))}
 function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
-function violations(d){const b=getBounds(d);const off=b.x<.04||b.y<.055||b.x+b.w>.96||b.y+b.h>.95;
- return [...areas[d.view].filter(z=>overlaps(b,z)),...(off?[{x:Math.max(0,b.x),y:Math.max(0,b.y),w:b.w,h:b.h,label:'خارج مساحة الهودي'}]:[]),...((d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)?[{...b,label:'التصميم أكبر من الحد الأقصى للطباعة'}]:[])];}
+function pointInPoly(x,y,polygon){
+ let inside=false;
+ for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+  const xi=polygon[i][0],yi=polygon[i][1],xj=polygon[j][0],yj=polygon[j][1];
+  if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+ }
+ return inside;
+}
+function onPrintablePart(b,targetView){
+ return PRINT_SURFACES[targetView].some(poly=>{
+  // Check all corners plus intermediate points so the artwork cannot cross a curved edge.
+  for(let ix=0;ix<=4;ix++)for(let iy=0;iy<=4;iy++){
+   if(!pointInPoly(b.x+b.w*ix/4,b.y+b.h*iy/4,poly))return false;
+  }
+  return true;
+ });
+}
+function violations(d){
+ const b=getBounds(d);
+ const result=areas[d.view].filter(zone=>overlaps(b,zone));
+ if(!onPrintablePart(b,d.view))result.push({...b,label:'خارج القماش أو مساحة الطباعة المتاحة'});
+ if(d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)result.push({...b,label:'تجاوز مقاس الطباعة 40 × 45 سم'});
+ return result;
+}
 function hasErrors(){return designs.some(d=>violations(d).length>0)}
 function snapshot(){history.push(JSON.stringify(designs));if(history.length>40)history.shift();future=[]}
 function current(){return designs.find(d=>d.id===selectedId)}
@@ -111,17 +177,53 @@ function loadImages(){Object.entries(ASSETS).forEach(([v,path])=>{const im=new I
 function renderColors(){$('colors').innerHTML=COLORS.map((c,i)=>`<button class="swatch ${color[0]===c[0]?'selected':''}" data-color="${i}"><i style="background:${c[1]}"></i>${c[0]}</button>`).join('')}
 function renderSizes(){$('sizes').innerHTML=Object.keys(SIZES).map(s=>`<button class="chip ${s===size?'selected':''}" data-size="${s}">${s}</button>`).join('');let q=SIZES[size];$('sizeInfo').textContent=`عرض الصدر ${q[0]} سم · طول الهودي ${q[1]} سم · طول الكم ${q[2]} سم`}
 function renderGallery(){$('gallery').innerHTML=store.gallery.map(g=>`<div class="gitem"><div class="gpreview">${g.src?`<img alt="" src="${g.src}">`:`<span>${escapeHTML(g.text||g.name)}</span>`}</div><button data-gallery="${escapeHTML(g.id)}">+ أضف ${escapeHTML(g.name)}</button></div>`).join('')}
-function addDesign(d){snapshot();const newItem={id:id(),view,kind:d.kind||'image',src:d.src||null,sourceName:d.sourceName||'تصميم',text:d.text||'',font:d.font||'Impact',color:d.color||'#ffffff',x:.42,y:.32,w:15,h:10,ratio:1.5};newItem.ratio=newItem.w/newItem.h;designs.push(newItem);selectedId=newItem.id;renderAll();notify('تمت إضافة التصميم؛ اسحبه للمكان المطلوب')}
+function addDesign(d){
+ snapshot();
+ const aspect=Number(d.ratio)>0&&Number.isFinite(Number(d.ratio))?Number(d.ratio):1.5;
+ const sleeve=view==='left'||view==='right',w=sleeve?11:15,h=Math.min(PRINT_LIMITS.height,w/aspect);
+ const newItem={
+  id:id(),view,kind:d.kind||'image',src:d.src||null,
+  sourceName:d.sourceName||'تصميم',text:d.text||'',font:d.font||'Impact',color:d.color||'#ffffff',
+  x:sleeve?.435:.425,y:sleeve?.415:.355,w,h,ratio:aspect,keepRatio:true
+ };
+ designs.push(newItem);
+ selectedId=newItem.id;
+ renderAll();
+ notify('تمت إضافة التصميم؛ حرّكه بالسحب أو حدّد مقاسه بالسنتيمتر');
+}
 function renderDesigns(){layer.innerHTML='';designs.filter(d=>d.view===view).forEach(d=>{const b=getBounds(d),el=document.createElement('div');el.className='design'+(selectedId===d.id&&showTools?' selected':'');el.dataset.id=d.id;el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
  if(d.kind==='image'){const image=document.createElement('img');image.src=d.src;image.alt=d.sourceName;el.appendChild(image)}else{const span=document.createElement('span');span.className='tx';span.textContent=d.text;span.style.fontFamily=d.font+",Arial,sans-serif";span.style.color=d.color;span.style.fontSize=textSize(d,layer.clientWidth)+'px';
  el.appendChild(span)}
  const handle=document.createElement('span');handle.className='resize';el.appendChild(handle);layer.appendChild(el);
  if(d.kind==='text'){const span=el.querySelector('.tx');span.style.fontSize=textSize(d,layer.clientWidth)+'px';}
  });renderZones();renderEditTools()}
-function renderZones(){const z=$('zones');z.innerHTML='';z.style.pointerEvents='none';const invalid=designs.filter(d=>d.view===view).flatMap(d=>violations(d));if(invalid.length){invalid.forEach(a=>{const box=document.createElement('div');box.className='invalid-outline';box.style.left=(a.x*100)+'%';box.style.top=(a.y*100)+'%';box.style.width=(a.w*100)+'%';box.style.height=(a.h*100)+'%';z.appendChild(box)})}
- const validation=$('validation');if(hasErrors()){validation.className='notice danger';validation.textContent='⚠ يوجد تصميم داخل منطقة ممنوعة أو خارج الحدود. حرّكه حتى يختفي الخط الأحمر؛ لن يتم تأكيد الطلب قبل التصحيح.'}else{validation.className='notice';validation.textContent='اسحب التصميم لأي مكان مناسب على الهودي. إذا تداخل مع الجيب أو الخياطة سيظهر خط أحمر.'}
- $('whatsappBtn').disabled=hasErrors();$('shareBtn').disabled=hasErrors();}
-function renderEditTools(){const d=current();$('editTools').style.opacity=d?'1':'.5';$('designWidth').disabled=$('designHeight').disabled=$('removeSelected').disabled=$('lockRatio').disabled=!d;$('designWidth').value=d?Number(d.w.toFixed(1)):'';$('designHeight').value=d?Number(d.h.toFixed(1)):'';$('selectedLabel').textContent=d?`المختار: ${d.sourceName||d.text} — ${VIEW_NAMES[d.view]}`:'اختار تصميمًا للتحكم فيه.'}
+function renderZones(){
+ const container=$('zones');container.innerHTML='';container.style.pointerEvents='none';
+ const currentErrors=designs.filter(d=>d.view===view).flatMap(d=>violations(d));
+ const unique=new Set();
+ for(const zone of currentErrors){
+  const key=[zone.x,zone.y,zone.w,zone.h].map(v=>v.toFixed(3)).join('/');
+  if(unique.has(key))continue;unique.add(key);
+  const box=document.createElement('div');
+  box.className='invalid-outline';
+  box.title=zone.label;
+  box.style.left=(zone.x*100)+'%';box.style.top=(zone.y*100)+'%';
+  box.style.width=(zone.w*100)+'%';box.style.height=(zone.h*100)+'%';
+  container.appendChild(box);
+ }
+ const invalidDesign=designs.find(d=>violations(d).length);
+ const validation=$('validation');
+ if(invalidDesign){
+  const issue=violations(invalidDesign)[0];
+  validation.className='notice danger';
+  validation.textContent='⚠ '+VIEW_NAMES[invalidDesign.view]+' — '+issue.label+'. حرّك التصميم أو صغّره حتى يختفي الخط الأحمر، وبعدها تقدر تكمل الطلب.';
+ }else{
+  validation.className='notice';
+  validation.textContent='اختار أي زاوية واسحب التصميم على القماش، بما في ذلك الأكمام. الجيب والخياطة والأطراف ممنوع الطباعة عليها؛ وقت التعارض يظهر خط أحمر.';
+ }
+ $('whatsappBtn').disabled=$('shareBtn').disabled=$('downloadBtn').disabled=Boolean(invalidDesign);
+}
+function renderEditTools(){const d=current();$('editTools').style.opacity=d?'1':'.5';$('designWidth').disabled=$('designHeight').disabled=$('removeSelected').disabled=$('lockRatio').disabled=!d;$('designWidth').value=d?Number(d.w.toFixed(1)):'';$('designHeight').value=d?Number(d.h.toFixed(1)):'';$('selectedLabel').textContent=d?`المختار: ${d.sourceName||d.text} — ${VIEW_NAMES[d.view]} · ${d.w.toFixed(1)} × ${d.h.toFixed(1)} سم`:'اختار تصميمًا للتحكم فيه.'}
 function price(){return Math.round(store.price*(1-store.discount/100))}
 function renderPrice(){$('unitPrice').textContent=price().toLocaleString('ar-EG')+' ج.م';$('originalPrice').textContent=store.discount>0?`بدلًا من ${store.price} جنيه · خصم ${store.discount}%`:'';$('adminPrice').value=store.price;$('adminDiscount').value=store.discount;renderSummary()}
 function renderSummary(){const qty=Math.max(1,parseInt($('quantity').value)||1),amount=qty*price();$('summary').innerHTML=`<div><span>المنتج</span><b>هودي Oversize</b></div><div><span>اللون</span><b>${color[0]}</b></div><div><span>مقاس الهودي</span><b>${size}</b></div><div><span>الكمية</span><b>${qty}</b></div><div><span>عناصر الطباعة</span><b>${designs.length}</b></div><hr style="border:0;border-top:1px solid #e5e5e8"><div><span>الإجمالي قبل الشحن</span><b style="color:#d8172a;font-size:16px">${amount.toLocaleString('ar-EG')} ج.م</b></div>`}
@@ -146,31 +248,75 @@ $('colors').addEventListener('click',e=>{const b=e.target.closest('[data-color]'
 $('sizes').addEventListener('click',e=>{const b=e.target.closest('[data-size]');if(!b)return;size=b.dataset.size;renderSizes();renderDesigns();renderSummary()});
 $('viewButtons').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)selectView(b.dataset.view)});
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));for(const name of ['Gallery','Upload','Text'])$('tab'+name).hidden=(name.toLowerCase()!==b.dataset.tab)}));
-$('gallery').addEventListener('click',e=>{const b=e.target.closest('[data-gallery]');if(!b)return;const g=store.gallery.find(x=>x.id===b.dataset.gallery);if(g){if(g.src)addDesign({kind:'image',src:g.src,sourceName:g.name});else addDesign({kind:'text',text:g.text||g.name,font:'Impact',color:'#ffffff',sourceName:g.name})}});
+$('gallery').addEventListener('click',e=>{const b=e.target.closest('[data-gallery]');if(!b)return;const g=store.gallery.find(x=>x.id===b.dataset.gallery);if(g){if(g.src){loadAsset(g.src).then(im=>addDesign({kind:'image',src:g.src,sourceName:g.name,ratio:im.naturalWidth/im.naturalHeight})).catch(()=>notify('تعذر تحميل التصميم'))}else addDesign({kind:'text',text:g.text||g.name,font:'Impact',color:'#ffffff',sourceName:g.name})}});
 function fileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file)})}
-$('uploadFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>6*1024*1024){notify('حجم الملف كبير. الحد التجريبي 6 ميجابايت');return}lastFile=f;const src=await fileData(f);addDesign({kind:'image',src,sourceName:f.name});e.target.value=''});
+$('uploadFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>6*1024*1024){notify('حجم الملف كبير. الحد التجريبي 6 ميجابايت');return}lastFile=f;const src=await fileData(f);try{const im=await loadAsset(src);addDesign({kind:'image',src,sourceName:f.name,ratio:im.naturalWidth/im.naturalHeight});}catch{notify('ملف الصورة غير صالح')}e.target.value=''});
 $('addText').addEventListener('click',()=>{const text=$('textContent').value.trim();if(!text){notify('اكتب الجملة أولًا');return}addDesign({kind:'text',text,font:$('font').value,color:$('textColor').value,sourceName:'كتابة: '+text.slice(0,25)})});
 $('designWidth').addEventListener('change',e=>applyMeasure('w',e.target.value));$('designHeight').addEventListener('change',e=>applyMeasure('h',e.target.value));
 $('lockRatio').addEventListener('click',()=>{const d=current();if(!d)return;d.keepRatio=d.keepRatio===false;d.ratio=d.w/d.h;$('lockRatio').textContent=d.keepRatio?'🔒 تناسب الأبعاد':'🔓 تعديل حر';notify(d.keepRatio?'تم قفل تناسب الأبعاد':'تم فتح تناسب الأبعاد')});
 $('removeSelected').addEventListener('click',()=>{if(!current())return;snapshot();designs=designs.filter(d=>d.id!==selectedId);selectedId=null;renderAll()});
 $('undoBtn').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(designs));designs=JSON.parse(history.pop());selectedId=null;renderAll()});$('redoBtn').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(designs));designs=JSON.parse(future.pop());selectedId=null;renderAll()});
 $('previewBtn').addEventListener('click',()=>{showTools=!showTools;renderDesigns()});$('quantity').addEventListener('input',renderSummary);
-// Pointer-driven positioning and scaling: all positions are normalized to the reference picture.
-layer.addEventListener('pointerdown',e=>{const el=e.target.closest('.design');if(!el)return;const d=designs.find(d=>d.id===el.dataset.id);if(!d)return;e.preventDefault();if(selectedId!==d.id){selectedId=d.id;renderDesigns()};snapshot();dragging={id:d.id,mode:e.target.classList.contains('resize')?'resize':'move',startX:e.clientX,startY:e.clientY,x:d.x,y:d.y,w:d.w,h:d.h,ratio:d.ratio};});
-window.addEventListener('pointermove',e=>{if(!dragging)return;const d=designs.find(v=>v.id===dragging.id);if(!d)return;const rect=layer.getBoundingClientRect(),dx=(e.clientX-dragging.startX)/rect.width,dy=(e.clientY-dragging.startY)/rect.height;
- if(dragging.mode==='move'){d.x=Math.max(-.15,Math.min(1.15,dragging.x+dx));d.y=Math.max(-.15,Math.min(1.15,dragging.y+dy));}
- else{const inc=(-dx/scaleW())+(dy/(scaleW()*1122/1402));const w=Math.max(2,dragging.w+inc*.55),h=d.keepRatio===false?Math.max(2,dragging.h+dy/(scaleW()*1122/1402)):w/dragging.ratio;const measured=clampPrintSize(d,w,h);d.w=measured.w;d.h=measured.h;}
- const el=layer.querySelector(`[data-id="${d.id}"]`);if(el){const b=getBounds(d);el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';if(d.kind==='text'){el.querySelector('.tx').style.fontSize=textSize(d,layer.clientWidth)+'px'}}
- renderZones();renderEditTools();renderSummary();});
-window.addEventListener('pointerup',()=>{if(dragging){dragging=null;renderDesigns()}});
+// Drag to position; resize from the lower-right corner. Both stay in real-centimeter units.
+layer.addEventListener('pointerdown',e=>{
+ const el=e.target.closest('.design');if(!el||!showTools)return;
+ const d=designs.find(x=>x.id===el.dataset.id);if(!d)return;
+ e.preventDefault();
+ const mode=e.target.classList.contains('resize')?'resize':'move';
+ if(selectedId!==d.id){selectedId=d.id;renderDesigns()}
+ snapshot();
+ dragging={id:d.id,mode,startX:e.clientX,startY:e.clientY,x:d.x,y:d.y,w:d.w,h:d.h,ratio:d.ratio};
+});
+window.addEventListener('pointermove',e=>{
+ if(!dragging)return;
+ const d=designs.find(x=>x.id===dragging.id);if(!d)return;
+ e.preventDefault();
+ const rect=layer.getBoundingClientRect();
+ const dx=(e.clientX-dragging.startX)/rect.width,dy=(e.clientY-dragging.startY)/rect.height;
+ if(dragging.mode==='move'){
+  d.x=Math.max(-.12,Math.min(1.08,dragging.x+dx));
+  d.y=Math.max(-.12,Math.min(1.08,dragging.y+dy));
+ }else{
+  const cmX=dx/scaleW(),cmY=dy/(scaleW()*1122/1402);
+  let w,h;
+  if(d.keepRatio===false){w=dragging.w+cmX;h=dragging.h+cmY}
+  else{
+   const change=Math.abs(cmX)>=Math.abs(cmY*d.ratio)?cmX:cmY*d.ratio;
+   w=dragging.w+change;h=w/dragging.ratio;
+  }
+  const measured=clampPrintSize(d,Math.max(2,w),Math.max(2,h));
+  d.w=measured.w;d.h=measured.h;
+ }
+ const el=layer.querySelector('[data-id="'+d.id+'"]');
+ if(el){
+  const b=getBounds(d);
+  el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';
+  el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
+  if(d.kind==='text')el.querySelector('.tx').style.fontSize=textSize(d,layer.clientWidth)+'px';
+ }
+ renderZones();renderEditTools();renderSummary();
+});
+function finishPointer(){if(dragging){dragging=null;renderDesigns()}}
+window.addEventListener('pointerup',finishPointer);
+window.addEventListener('pointercancel',finishPointer);
 // Export actual source image + graphics via canvas (no HTML capture dependency).
-async function makePreview(targetView=view){if(color[0]!=='زيتي')await loadRealPhoto(color[0],targetView);if(!photoCache[targetView]&&!colorPhotoCache[realPhotoKey(color[0],targetView)])throw new Error('الصورة لم تكتمل');const prev=view;const off=document.createElement('canvas');off.width=1122;off.height=1402;const p=off.getContext('2d');
- // Preserve state while rendering the chosen product view and its selected color.
- view=targetView;drawBackground();p.drawImage(canvas,0,0);view=prev;if(prev!==targetView)drawBackground();
- for(const d of designs.filter(x=>x.view===targetView)){const b=getBounds(d),x=b.x*1122,y=b.y*1402,w=b.w*1122,h=b.h*1402;
- if(d.kind==='text'){p.textAlign='center';p.textBaseline='middle';p.fillStyle=d.color;p.font=`900 ${Math.round(textSize(d,1122))}px ${d.font},Arial`;p.fillText(d.text,x+w/2,y+h/2,w);}
- else if(d.src){const img=await loadAsset(d.src);p.drawImage(img,x,y,w,h)} }
- return new Promise(resolve=>off.toBlob(blob=>resolve(blob),'image/png'));
+// Export without mutating global view: preview and saved PNG remain on the correct angle.
+async function makePreview(targetView=view){
+ const image=color[0]==='زيتي'?photoCache[targetView]:await loadRealPhoto(color[0],targetView);
+ if(!image)throw new Error('صورة اللون لم تُحمّل بعد');
+ const off=document.createElement('canvas');off.width=1122;off.height=1402;
+ const p=off.getContext('2d');p.drawImage(image,0,0,1122,1402);
+ for(const d of designs.filter(x=>x.view===targetView)){
+  const b=getBounds(d),x=b.x*1122,y=b.y*1402,w=b.w*1122,h=b.h*1402;
+  if(d.kind==='text'){
+   p.textAlign='center';p.textBaseline='middle';p.fillStyle=d.color;
+   p.font='900 '+Math.round(textSize(d,1122))+'px '+d.font+',Arial';
+   p.fillText(d.text,x+w/2,y+h/2,w);
+  }else if(d.src){
+   const artwork=await loadAsset(d.src);p.drawImage(artwork,x,y,w,h);
+  }
+ }
+ return new Promise((resolve,reject)=>off.toBlob(blob=>blob?resolve(blob):reject(new Error('Export failed')),'image/png'));
 }
 function loadAsset(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),15000)}

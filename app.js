@@ -1,5 +1,30 @@
 'use strict';
 const ASSETS={front:'assets/hoodie-front.png',back:'assets/hoodie-back.png',left:'assets/hoodie-left.png',right:'assets/hoodie-right.png'};
+// Photographic mockups for all colors. Olive continues using the original PNGs.
+// Each color has real product photos for front, back and both side views.
+const COLOR_SLUGS={'أبيض':'white','أسود':'black','برجندي':'burgundy','كحلي':'navy','رمادي':'gray','بيج':'beige','بني':'brown'};
+const colorPhotoCache={};
+const colorPhotoRequests={};
+function realPhotoKey(colorName,targetView){return colorName+':'+targetView}
+function realPhotoPath(colorName,targetView){return 'assets/hoodie-'+COLOR_SLUGS[colorName]+'-'+targetView+'.webp'}
+function loadRealPhoto(colorName,targetView){
+ if(colorName==='زيتي')return Promise.resolve(photoCache[targetView]||null);
+ const key=realPhotoKey(colorName,targetView);
+ if(colorPhotoCache[key])return Promise.resolve(colorPhotoCache[key]);
+ if(colorPhotoRequests[key])return colorPhotoRequests[key];
+ return colorPhotoRequests[key]=new Promise(resolve=>{
+  const image=new Image();
+  image.onload=()=>{colorPhotoCache[key]=image;resolve(image);if(color[0]===colorName&&view===targetView)drawBackground()};
+  image.onerror=()=>resolve(null); // Existing preview fallback until the new image is uploaded.
+  image.src=realPhotoPath(colorName,targetView);
+ });
+}
+function prefetchSelectedColor(colorName,targetView=view){
+ if(colorName==='زيتي')return;
+ loadRealPhoto(colorName,targetView);
+ for(const angle of Object.keys(ASSETS)){if(angle!==targetView)loadRealPhoto(colorName,angle)}
+}
+
 const VIEW_NAMES={front:'الأمام',back:'الخلف',left:'الجانب 1',right:'الجانب 2'};
 const SIZES={M:[60,70,58],L:[62,72,60],XL:[64,74,62],'2XL':[66,76,64],'3XL':[68,78,66]};
 const COLORS=[['أبيض','#f2efeb'],['أسود','#18181a'],['زيتي','#66744a'],['برجندي','#743043'],['كحلي','#273851'],['رمادي','#83888c'],['بيج','#c9b79c'],['بني','#79543f']];
@@ -43,10 +68,12 @@ const FABRIC_GRADES={
   'بني':    {rgb:[112,83,72],contrast:32,blackPoint:9,whitePoint:204}
 };
 function drawBackground(){
- const image=photoCache[view];if(!image)return;
+ const chosen=colorPhotoCache[realPhotoKey(color[0],view)];
+ const image=chosen||photoCache[view];if(!image)return;
  ctx.clearRect(0,0,1122,1402);
  ctx.drawImage(image,0,0,1122,1402);
- if(color[0]==='زيتي')return; // Exact original sample, with its lighting and weave preserved.
+ if(chosen||color[0]==='زيتي')return; // Draw supplied photography untouched.
+ // Keep legacy preview only for colors whose files are not uploaded yet.
  const recipe=FABRIC_GRADES[color[0]];
  if(!recipe)return;
  let frame;
@@ -99,7 +126,7 @@ function price(){return Math.round(store.price*(1-store.discount/100))}
 function renderPrice(){$('unitPrice').textContent=price().toLocaleString('ar-EG')+' ج.م';$('originalPrice').textContent=store.discount>0?`بدلًا من ${store.price} جنيه · خصم ${store.discount}%`:'';$('adminPrice').value=store.price;$('adminDiscount').value=store.discount;renderSummary()}
 function renderSummary(){const qty=Math.max(1,parseInt($('quantity').value)||1),amount=qty*price();$('summary').innerHTML=`<div><span>المنتج</span><b>هودي Oversize</b></div><div><span>اللون</span><b>${color[0]}</b></div><div><span>مقاس الهودي</span><b>${size}</b></div><div><span>الكمية</span><b>${qty}</b></div><div><span>عناصر الطباعة</span><b>${designs.length}</b></div><hr style="border:0;border-top:1px solid #e5e5e8"><div><span>الإجمالي قبل الشحن</span><b style="color:#d8172a;font-size:16px">${amount.toLocaleString('ar-EG')} ج.م</b></div>`}
 function renderAll(){renderColors();renderSizes();renderDesigns();renderSummary();}
-function selectView(v){view=v;selectedId=null;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===view));drawBackground();renderDesigns()}
+function selectView(v){view=v;selectedId=null;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===view));drawBackground();prefetchSelectedColor(color[0],v);renderDesigns()}
 function clampPrintSize(d,w,h){
  w=Math.max(2,Number(w)||2);h=Math.max(2,Number(h)||2);
  if(d.keepRatio===false){return {w:Math.min(PRINT_LIMITS.width,w),h:Math.min(PRINT_LIMITS.height,h)};}
@@ -115,7 +142,7 @@ function applyMeasure(axis,n){const d=current();if(!d)return;
  renderDesigns();renderSummary();
 }
 // DOM events
-$('colors').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;color=COLORS[+b.dataset.color];renderColors();drawBackground();renderSummary()});
+$('colors').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;color=COLORS[+b.dataset.color];renderColors();drawBackground();prefetchSelectedColor(color[0]);renderSummary()});
 $('sizes').addEventListener('click',e=>{const b=e.target.closest('[data-size]');if(!b)return;size=b.dataset.size;renderSizes();renderDesigns();renderSummary()});
 $('viewButtons').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)selectView(b.dataset.view)});
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));for(const name of ['Gallery','Upload','Text'])$('tab'+name).hidden=(name.toLowerCase()!==b.dataset.tab)}));
@@ -137,7 +164,7 @@ window.addEventListener('pointermove',e=>{if(!dragging)return;const d=designs.fi
  renderZones();renderEditTools();renderSummary();});
 window.addEventListener('pointerup',()=>{if(dragging){dragging=null;renderDesigns()}});
 // Export actual source image + graphics via canvas (no HTML capture dependency).
-async function makePreview(targetView=view){if(!photoCache[targetView])throw new Error('الصورة لم تكتمل');const prev=view;const off=document.createElement('canvas');off.width=1122;off.height=1402;const p=off.getContext('2d');
+async function makePreview(targetView=view){if(color[0]!=='زيتي')await loadRealPhoto(color[0],targetView);if(!photoCache[targetView]&&!colorPhotoCache[realPhotoKey(color[0],targetView)])throw new Error('الصورة لم تكتمل');const prev=view;const off=document.createElement('canvas');off.width=1122;off.height=1402;const p=off.getContext('2d');
  // Preserve state while rendering the chosen product view and its selected color.
  view=targetView;drawBackground();p.drawImage(canvas,0,0);view=prev;if(prev!==targetView)drawBackground();
  for(const d of designs.filter(x=>x.view===targetView)){const b=getBounds(d),x=b.x*1122,y=b.y*1402,w=b.w*1122,h=b.h*1402;

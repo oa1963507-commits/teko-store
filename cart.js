@@ -168,7 +168,7 @@ function navigate(place){
   else a.removeAttribute("aria-current");
  });
  if(screen==="cart")renderCart();
- if(screen==="studio")renderSummary();
+ if(screen==="studio"){renderSummary();window.TEKO_START_SECURITY?.();}
  window.scrollTo(0,0);
  if(place==="designs")setTimeout(()=>$("designs").scrollIntoView({behavior:"smooth",block:"start"}),90);
 }

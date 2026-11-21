@@ -65,6 +65,45 @@ async function checkTurnstile(token: string) {
   return result.success === true && result.hostname === "oa1963507-commits.github.io";
 }
 
+// Staged V24: validated order details, stored only after ZIP upload completes.
+// Financial numbers are customer-facing quotes, not trusted prices for payment.
+function parseOrder(payload: unknown, storagePath: string): Record<string, unknown> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw Error("Invalid order details");
+  const d = payload as Record<string, unknown>;
+  if (JSON.stringify(d).length > 16000) throw Error("Order details too large");
+  const customer = d.customer as Record<string, unknown> | undefined;
+  const item = d.item as Record<string, unknown> | undefined;
+  if (!customer || !item || typeof customer !== "object" || typeof item !== "object") throw Error("Incomplete order");
+  const clean = (value: unknown, max: number) => String(value ?? "").trim().slice(0, max);
+  const name = clean(customer.name, 120);
+  const phone = clean(customer.phone, 20);
+  const code = clean(d.code, 40);
+  const qty = Number(item.quantity);
+  const unit = Number(item.unitPrice);
+  const total = Number(item.totalBeforeShipping);
+  const designs = d.designs;
+  if (!name || !/^01[0-9]{9}$/.test(phone) || !/^TK-[0-9]{5,20}$/.test(code) ||
+      !Number.isSafeInteger(qty) || qty < 1 || qty > 100 ||
+      !Number.isFinite(unit) || unit < 0 || unit > 100000 ||
+      !Number.isFinite(total) || total < 0 || total > 10000000 ||
+      !Array.isArray(designs) || designs.length > 32) throw Error("Invalid order data");
+  return {
+    order_code: code,
+    storage_path: storagePath,
+    customer_name: name,
+    customer_phone: phone,
+    customer_address: clean(customer.address, 450),
+    customer_notes: clean(customer.notes, 750),
+    hoodie_color: clean(item.color, 50),
+    hoodie_size: clean(item.size, 15),
+    quantity: qty,
+    unit_quote_egp: unit,
+    total_quote_egp: total,
+    order_payload: d,
+    status: "new",
+  };
+}
+
 Deno.serve(async request => {
   const origin = request.headers.get("Origin");
   if (request.method === "OPTIONS" && origin === ORIGIN)
@@ -109,10 +148,26 @@ Deno.serve(async request => {
       const { data: info, error: infoError } = await client.storage.from(BUCKET).info(path);
       if (infoError || !info || Number(info.size) !== size)
         return json({ error: "ZIP upload missing or incomplete" }, 409, origin);
+      let recorded = false;
+      if (p.order !== undefined) {
+        let row: Record<string, unknown>;
+        try { row = parseOrder(p.order, path); }
+        catch { return json({ error: "Invalid order details" }, 400, origin); }
+        const { error: insertError } = await client.from("teko_orders").insert(row);
+        if (insertError) {
+          // A repeated finish for an already registered ZIP is idempotent.
+          if (insertError.code === "23505") {
+            const { data: found, error: findError } = await client.from("teko_orders")
+              .select("id").eq("storage_path", path).maybeSingle();
+            if (findError || !found) throw Error("Unable to verify existing order");
+          } else throw Error("Database order registration failed");
+        }
+        recorded = true;
+      }
       const { data, error } = await client.storage.from(BUCKET).createSignedUrl(
         path, DOWNLOAD_SECONDS, { download: "TEKO-ORDER.zip" });
       if (error || !data?.signedUrl) throw Error(error?.message || "Signed download failed");
-      return json({ downloadUrl: data.signedUrl,
+      return json({ downloadUrl: data.signedUrl, registered: recorded,
         expiresAt: new Date(Date.now() + DOWNLOAD_SECONDS * 1000).toISOString() },
         200, origin);
     }

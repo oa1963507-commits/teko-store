@@ -789,7 +789,8 @@ const CLOUD_URL=String(ORDER_CLOUD.functionUrl||ORDER_CLOUD.workerUrl||'').repla
 const CLOUD_ACTIVE=(()=>{
  try{
   const url=new URL(CLOUD_URL);
-  return ORDER_CLOUD.enabled===true&&url.protocol==='https:'&&!!ORDER_CLOUD.turnstileSiteKey;
+  const preview=ORDER_CLOUD.previewEnabled===true&&new URLSearchParams(window.location.search).get('tekoCloudTest')==='1';
+  return (ORDER_CLOUD.enabled===true||preview)&&url.protocol==='https:'&&!!ORDER_CLOUD.turnstileSiteKey;
  }catch{return false}
 })();
 let turnstileToken=null,turnstileWidget=null,cloudUploading=false;
@@ -939,6 +940,9 @@ $('whatsappBtn').addEventListener('click',async()=>{
  }
 });
 setupOrderCloud();
+if(CLOUD_ACTIVE&&ORDER_CLOUD.enabled!==true){
+ cloudMessage('وضع اختبار Supabase — الطلبات الحقيقية على الرابط العادي لم تتغير. أكمل التحقق وجرب ملف ZIP صغيرًا.');
+}
 // V15: one checkout button, without additional sharing controls.
 // WhatsApp links cannot attach local files directly: ZIP downloads, then the owner message opens.
 async function prepareTemporaryCheckout(code=orderCode()){

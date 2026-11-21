@@ -8,6 +8,8 @@ const project=String(config.projectUrl||"").replace(/\/+$/,"");
 const publicKey=String(config.publicKey||"");
 const fn=String(config.functionName||"teko-admin-orders");
 const reportsEnabled=config.reportsEnabled===true;
+const storageEnabled=config.storageEnabled===true;
+const storageState={page:0,count:0,files:[],selected:new Set(),busy:false,pendingMode:null,pendingPaths:[],partial:false};
 const money=(amount)=>Number(amount||0).toLocaleString("ar-EG",{maximumFractionDigits:2})+" ج.م";
 const configured=project.startsWith("https://")&&(publicKey.startsWith("sb_publishable_")||publicKey.length>75);
 const statusLabels={new:"جديد",reviewing:"قيد المراجعة",in_production:"قيد التنفيذ",ready:"جاهز",delivered:"تم التسليم",cancelled:"ملغي"};
@@ -24,6 +26,7 @@ function showApp(){
   $("insightsPanel").hidden=false;
   $("ownerTabs").hidden=false;
   $("exportOrdersBtn").hidden=false;
+  if(storageEnabled)$("tabStorage").hidden=false;
   refreshDashboard();
  }
 }
@@ -236,10 +239,13 @@ function showSection(section){
  state.section=section;
  $("ordersPanel").hidden=section!=="orders";
  $("customersPanel").hidden=section!=="customers";
+ $("storagePanel").hidden=section!=="storage";
  $("detailPanel").hidden=true;
  $("tabOrders").setAttribute("aria-selected",String(section==="orders"));
  $("tabCustomers").setAttribute("aria-selected",String(section==="customers"));
+ $("tabStorage").setAttribute("aria-selected",String(section==="storage"));
  if(section==="customers")loadCustomers();
+ if(section==="storage"&&storageEnabled)loadStorage();
 }
 function renderCustomers(){
  const body=$("customersBody");body.replaceChildren();
@@ -292,6 +298,140 @@ async function loadCustomers(){
     " (تأكد من نشر تحديث Edge Function).";
  }
 }
+// V30 private storage monitor: no Supabase Storage admin credentials in browser.
+function storageUnit(bytes){
+ const n=Number(bytes);
+ if(!Number.isFinite(n)||n<0)return "غير معروف";
+ if(n>=1000000000)return (n/1000000000).toFixed(2)+" GB";
+ if(n>=1000000)return (n/1000000).toFixed(1)+" MB";
+ if(n>=1000)return (n/1000).toFixed(1)+" KB";
+ return n.toFixed(0)+" B";
+}
+function storageNotice(message){$("storageStatus").textContent=message;}
+function selectedStoragePaths(){return [...storageState.selected];}
+function updateStorageControls(){
+ $("selectedZips").textContent=storageState.selected.size?
+  "تم تحديد "+storageState.selected.size+" ملف في الصفحة":"لم يتم تحديد ملفات";
+ $("deleteSelectedZips").disabled=storageState.busy||storageState.selected.size===0;
+ $("deleteAllZips").disabled=storageState.busy||storageState.count===0;
+ const count=storageState.files.length;
+ const checked=storageState.files.filter(file=>storageState.selected.has(file.path)).length;
+ $("selectAllZips").checked=count>0&&checked===count;
+ $("selectAllZips").indeterminate=checked>0&&checked<count;
+ $("selectAllZips").disabled=storageState.busy||count===0;
+}
+function renderStorage(data){
+ storageState.count=Number(data.countedFiles)||0;
+ storageState.files=Array.isArray(data.files)?data.files:[];
+ storageState.partial=Boolean(data.partial);
+ storageState.selected.clear();
+ const partial=data.partial;
+ $("storageUsed").textContent=(partial?"≥ ":"")+storageUnit(data.usedBytes);
+ $("storageFree").textContent=data.freeEstimateBytes===null?
+  "غير محدد":storageUnit(data.freeEstimateBytes);
+ const percent=data.percentEstimate===null?null:Number(data.percentEstimate);
+ $("storagePercent").textContent=percent===null?"غير محدد":percent.toFixed(1)+"%";
+ const progress=percent===null?0:Math.max(0,Math.min(100,percent));
+ const fill=$("storageFill");
+ fill.style.width=progress+"%";
+ fill.className="storage-fill"+(progress>=90?" critical":progress>=80?" warning":"");
+ $("storageProgress").setAttribute("aria-valuenow",String(Math.round(progress)));
+ $("storageFileCount").textContent=storageState.count.toLocaleString("ar-EG")+" ملف ZIP"+(partial?" أو أكثر":"");
+ $("storageDetail").textContent=(partial
+   ?"⚠️ الجرد غير مكتمل، لذلك المساحة المستخدمة حد أدنى ولا يمكن حساب المتبقي بدقة."
+   :"تم حساب حجم الملفات الموجودة داخل مساحة الطلبات فقط.")+
+  (data.unknownSizeCount?" · "+data.unknownSizeCount+" ملف بدون معلومات حجم.":"")+
+  (percent!==null&&percent>=80?" · ⚠️ المساحة المستخدمة في الملفات دي اقتربت من حد 1 GB.":"");
+ const tbody=$("storageFilesBody");tbody.replaceChildren();
+ if(!storageState.files.length){
+  const row=document.createElement("tr"),cell=td("لا توجد ملفات ZIP في هذه الصفحة.");
+  cell.colSpan=5;row.append(cell);tbody.append(row);
+ }
+ for(const file of storageState.files){
+  if(!/^orders\/[a-f0-9-]{36}\.zip$/.test(file.path))continue;
+  const row=document.createElement("tr"),first=document.createElement("td");
+  const check=document.createElement("input");check.type="checkbox";
+  check.setAttribute("aria-label","تحديد ملف "+file.name);
+  check.addEventListener("change",()=>{
+   if(check.checked)storageState.selected.add(file.path);
+   else storageState.selected.delete(file.path);
+   updateStorageControls();
+  });
+  first.append(check);row.append(first,
+   td(file.name),td(formatDate(file.createdAt)),
+   td(file.sizeBytes==null?"غير معروف":storageUnit(file.sizeBytes)),
+   td(file.ageDays==null?"—":file.ageDays+" يوم"));
+  tbody.append(row);
+ }
+ const totalPages=Math.max(1,Math.ceil(storageState.count/25));
+ $("storagePagination").textContent="صفحة "+(storageState.page+1)+" من "+totalPages;
+ $("storagePrev").disabled=storageState.busy||storageState.page<=0;
+ $("storageNext").disabled=storageState.busy||(storageState.page+1)>=totalPages;
+ updateStorageControls();
+}
+async function loadStorage(){
+ if(!storageEnabled||!state.token||storageState.busy)return;
+ storageState.busy=true;
+ storageNotice("جاري قراءة مساحة ZIP من Supabase...");
+ $("refreshStorage").disabled=true;
+ try{
+  const data=await call("storage",{page:storageState.page});
+  renderStorage(data.storage||{});
+  storageNotice("تم تحديث بيانات التخزين. الحذف اليدوي يحتاج تأكيدًا مستقلًا لكل عملية.");
+ }catch(error){storageNotice("تعذر تحميل مساحة ZIP: "+error.message);}
+ finally{storageState.busy=false;$("refreshStorage").disabled=false;updateStorageControls();}
+}
+function resetStorageConfirm(){
+ storageState.pendingMode=null;storageState.pendingPaths=[];
+ $("storageConfirmPanel").hidden=true;
+ $("storageConfirmText").value="";
+ $("storageConfirmDelete").disabled=true;
+}
+function beginStorageDelete(mode){
+ if(!storageEnabled||storageState.busy)return;
+ const all=mode==="all";
+ const paths=all?[]:selectedStoragePaths();
+ if(!all&&!paths.length){storageNotice("حدد ملف ZIP واحدًا على الأقل أولًا.");return;}
+ if(all&&storageState.count===0){storageNotice("المساحة فارغة حاليًا.");return;}
+ storageState.pendingMode=mode;
+ storageState.pendingPaths=paths;
+ const count=all?storageState.count:paths.length;
+ const phrase=all?"حذف الكل":"حذف المحدد";
+ $("storageConfirmTitle").textContent=all?"تأكيد تفريغ ملفات ZIP":"تأكيد حذف ملفات ZIP المحددة";
+ $("storageConfirmMessage").textContent=
+  "سيتم حذف "+count+" ملف"+(all?" (أو حتى 500 ملف في عملية واحدة عند كثرة الطلبات)":"")+
+  " بصورة نهائية من مساحة teko-orders. كل روابط التحميل لهذه الملفات ستتوقف فورًا، حتى لو لم تكمل 7 أيام. "+
+  "بيانات الطلبات تظل محفوظة. اكتب «"+phrase+"» للتأكيد.";
+ $("storageConfirmText").placeholder=phrase;
+ $("storageConfirmText").value="";
+ $("storageConfirmPanel").hidden=false;
+ $("storageConfirmDelete").disabled=true;
+ $("storageConfirmText").focus();
+}
+async function confirmStorageDelete(){
+ const mode=storageState.pendingMode;
+ const required=mode==="all"?"حذف الكل":"حذف المحدد";
+ if(!mode||storageState.busy||$("storageConfirmText").value.trim()!==required)return;
+ const paths=[...storageState.pendingPaths];
+ storageState.busy=true;
+ $("storageConfirmDelete").disabled=true;
+ $("storageCancelDelete").disabled=true;
+ storageNotice("جاري حذف ملفات ZIP المحددة من Supabase...");
+ try{
+  const response=await call("storageDelete",{
+   mode,paths,
+   confirmation:mode==="all"?"DELETE_ALL_ZIPS":"DELETE_SELECTED_ZIPS",
+   acknowledgeLinksBreak:true
+  });
+  const result=response.deletion||{};
+  resetStorageConfirm();
+  storageState.page=0;storageState.selected.clear();
+  storageNotice("✅ تم تنفيذ الحذف. الملفات المتأثرة: "+Number(result.deleted||0)+
+    (result.possiblyMore?" · ما زالت توجد ملفات أخرى؛ حدّث المساحة ثم كرر العملية إن لزم.":"")+
+    " · روابط تحميلها لم تعد صالحة.");
+ }catch(error){storageNotice("فشل الحذف؛ لم نؤكد مسح الملفات: "+error.message);}
+ finally{$("storageCancelDelete").disabled=false;storageState.busy=false;await loadStorage();}
+}
 function safeCSVCell(value){
  const input=String(value==null?"":value);
  // Avoid CSV formula injection when a file is opened in Excel.
@@ -337,6 +477,25 @@ $("reportPeriod").addEventListener("change",refreshDashboard);
 $("refreshReports").addEventListener("click",refreshDashboard);
 $("tabOrders").addEventListener("click",()=>showSection("orders"));
 $("tabCustomers").addEventListener("click",()=>showSection("customers"));
+$("tabStorage").addEventListener("click",()=>{if(storageEnabled)showSection("storage");});
+$("refreshStorage").addEventListener("click",loadStorage);
+$("storagePrev").addEventListener("click",()=>{if(storageState.page>0){storageState.page--;loadStorage();}});
+$("storageNext").addEventListener("click",()=>{if((storageState.page+1)*25<storageState.count){storageState.page++;loadStorage();}});
+$("selectAllZips").addEventListener("change",checked=>{
+ for(const file of storageState.files){
+  if(checked.target.checked)storageState.selected.add(file.path);
+  else storageState.selected.delete(file.path);
+ }
+ updateStorageControls();
+});
+$("deleteSelectedZips").addEventListener("click",()=>beginStorageDelete("selected"));
+$("deleteAllZips").addEventListener("click",()=>beginStorageDelete("all"));
+$("storageCancelDelete").addEventListener("click",resetStorageConfirm);
+$("storageConfirmText").addEventListener("input",()=>{
+ const phrase=storageState.pendingMode==="all"?"حذف الكل":"حذف المحدد";
+ $("storageConfirmDelete").disabled=$("storageConfirmText").value.trim()!==phrase||storageState.busy;
+});
+$("storageConfirmDelete").addEventListener("click",confirmStorageDelete);
 $("customerFilterForm").addEventListener("submit",event=>{event.preventDefault();state.customerPage=0;loadCustomers();});
 $("prevCustomerPage").addEventListener("click",()=>{if(state.customerPage>0){state.customerPage--;loadCustomers();}});
 $("nextCustomerPage").addEventListener("click",()=>{if((state.customerPage+1)*25<state.customerTotal){state.customerPage++;loadCustomers();}});

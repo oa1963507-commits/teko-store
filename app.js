@@ -203,7 +203,7 @@ function hex(h){h=h.slice(1);return[parseInt(h.slice(0,2),16),parseInt(h.slice(2
 function loadImages(){Object.entries(ASSETS).forEach(([v,path])=>{const im=new Image();im.onload=()=>{photoCache[v]=im;if(view===v)drawBackground()};im.onerror=()=>notify('تعذر تحميل زاوية الهودي: '+VIEW_NAMES[v]);
  // Inline original PNG bytes keep the canvas origin-clean even when index.html is opened via file://.
  im.src=(window.TEKO_HOODIE_IMAGES&&window.TEKO_HOODIE_IMAGES[v])||path;})}
-function renderColors(){$('colors').innerHTML=COLORS.map((c,i)=>`<button class="swatch ${color[0]===c[0]?'selected':''}" data-color="${i}"><i style="background:${c[1]}"></i>${c[0]}</button>`).join('')}
+function renderColors(){window.TEKO_DRAFT?.changed();$('colors').innerHTML=COLORS.map((c,i)=>`<button class="swatch ${color[0]===c[0]?'selected':''}" data-color="${i}"><i style="background:${c[1]}"></i>${c[0]}</button>`).join('')}
 function renderSizes(){$('sizes').innerHTML=Object.keys(SIZES).map(s=>`<button class="chip ${s===size?'selected':''}" data-size="${s}">${s}</button>`).join('');let q=SIZES[size];$('sizeInfo').textContent=`عرض الصدر ${q[0]} سم · طول الهودي ${q[1]} سم · طول الكم ${q[2]} سم`}
 function renderGallery(){$('gallery').innerHTML=store.gallery.map(g=>`<div class="gitem"><div class="gpreview">${g.src?`<img alt="" src="${g.src}">`:`<span>${escapeHTML(g.text||g.name)}</span>`}</div><button data-gallery="${escapeHTML(g.id)}">+ أضف ${escapeHTML(g.name)}</button></div>`).join('')}
 function addDesign(d){
@@ -221,6 +221,7 @@ function addDesign(d){
  notify('تمت إضافة التصميم؛ حرّكه بالسحب أو حدّد مقاسه بالسنتيمتر');
 }
 function renderDesigns(){
+ window.TEKO_DRAFT?.changed();
  layer.innerHTML='';
  designs.filter(d=>d.view===view).forEach(d=>{
   const b=getBounds(d),el=document.createElement('div');
@@ -315,7 +316,7 @@ function fileData(file){return new Promise((resolve,reject)=>{const reader=new F
 $('uploadFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>6*1024*1024){notify('حجم الملف كبير. الحد التجريبي 6 ميجابايت');return}lastFile=f;const src=await fileData(f);try{const im=await loadAsset(src);addDesign({kind:'image',src,sourceName:f.name,ratio:im.naturalWidth/im.naturalHeight});}catch{notify('ملف الصورة غير صالح')}e.target.value=''});
 $('addText').addEventListener('click',()=>{const text=$('textContent').value.trim();if(!text){notify('اكتب الجملة أولًا');return}addDesign({kind:'text',text,font:$('font').value,color:$('textColor').value,sourceName:'كتابة: '+text.slice(0,25)})});
 $('designWidth').addEventListener('change',e=>applyMeasure('w',e.target.value));$('designHeight').addEventListener('change',e=>applyMeasure('h',e.target.value));
-$('lockRatio').addEventListener('click',()=>{const d=current();if(!d)return;d.keepRatio=d.keepRatio===false;d.ratio=d.w/d.h;$('lockRatio').textContent=d.keepRatio?'🔒 تناسب الأبعاد':'🔓 تعديل حر';notify(d.keepRatio?'تم قفل تناسب الأبعاد':'تم فتح تناسب الأبعاد')});
+$('lockRatio').addEventListener('click',()=>{const d=current();if(!d)return;d.keepRatio=d.keepRatio===false;d.ratio=d.w/d.h;window.TEKO_DRAFT?.changed();$('lockRatio').textContent=d.keepRatio?'🔒 تناسب الأبعاد':'🔓 تعديل حر';notify(d.keepRatio?'تم قفل تناسب الأبعاد':'تم فتح تناسب الأبعاد')});
 function deleteDesign(designId){
  if(!designs.some(d=>d.id===designId))return;
  snapshot();
@@ -366,7 +367,7 @@ function applyTextSetting(prop,value){
  if(prop==='color'){$('selectedTextColor').value=value;$('textColor').value=value}
  if(prop==='fontScale'){$('selectedFontScaleValue').textContent=Math.round(value*100)+'%'}
  if(prop==='text')$('selectedLabel').textContent='المختار: '+d.sourceName+' — '+VIEW_NAMES[d.view];
- scheduleInk();
+ scheduleInk();window.TEKO_DRAFT?.changed();
 }
 function bindTextInput(id,property,convert){
  const element=$(id);
@@ -393,7 +394,7 @@ function toggleCleanPreview(){
 }
 $('previewBtn').addEventListener('click',toggleCleanPreview);
 if($('cleanPreviewBtn'))$('cleanPreviewBtn').addEventListener('click',toggleCleanPreview);
-$('quantity').addEventListener('input',renderSummary);
+$('quantity').addEventListener('input',()=>{renderSummary();window.TEKO_DRAFT?.changed()});
 // V9: compact three-dot menu follows the selected object without replacing the full side controls.
 let quickMenuOpen=false,quickMenuSelected=null;
 function positionQuickDock(){

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "teko-order-files",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-21",
+  "workers_dev": true,
+  "vars": {
+    "APP_ORIGIN": "https://oa1963507-commits.github.io",
+    "LINK_TTL_DAYS": "30",
+    "MAX_UPLOAD_MB": "20"
+  },
+  "r2_buckets": [
+    {
+      "binding": "ORDERS_BUCKET",
+      "bucket_name": "teko-orders"
+    }
+  ]
+}

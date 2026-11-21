@@ -532,7 +532,7 @@ window.addEventListener('pointerup',finishPointer);
 window.addEventListener('pointercancel',finishPointer);
 // Export actual source image + graphics via canvas (no HTML capture dependency).
 // Export without mutating global view: preview and saved PNG remain on the correct angle.
-async function makePreview(targetView=view){
+async function makePreview(targetView=view,format='image/png',quality=0.92){
  const im=color[0]==='زيتي'?photoCache[targetView]:await loadRealPhoto(color[0],targetView);
  if(!im)throw new Error('صورة اللون لم تُحمّل بعد');
  for(const d of designs.filter(x=>x.view===targetView&&x.kind==='image')){
@@ -543,7 +543,7 @@ async function makePreview(targetView=view){
  const exportCanvas=document.createElement('canvas');exportCanvas.width=1122;exportCanvas.height=1402;
  const p=exportCanvas.getContext('2d');p.drawImage(photo,0,0);
  drawInk(p,photo,targetView,true);
- return new Promise((resolve,reject)=>exportCanvas.toBlob(blob=>blob?resolve(blob):reject(Error('Export failed')),'image/png'));
+ return new Promise((resolve,reject)=>exportCanvas.toBlob(blob=>blob?resolve(blob):reject(Error('Export failed')),format,quality));
 }
 function loadAsset(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();const url=a.href;setTimeout(()=>URL.revokeObjectURL(url),60000)}
@@ -660,20 +660,40 @@ function orderSheetText(code){
   'هذه الحزمة تم تجهيزها محليًا ولم يتم إرسالها تلقائيًا إلى واتساب.');
  return '\ufeff'+lines.join('\r\n');
 }
-async function buildOrderPackage(code){
+// Fast cloud package: high-quality JPEG mockups have a dramatically smaller
+// transfer footprint than PNG photographic mockups. Customer originals remain
+// byte-for-byte unchanged, including transparency. Manual downloads stay PNG.
+// Export two views at a time to avoid saturating memory on smaller devices.
+async function buildOrderPackage(code,{fastCloud=false,onStage=()=>{}}={}){
  const pack=[];
- const chosen=color[0];
- for(const v of REVIEW_VIEWS){
-  const mockup=await makePreview(v);
-  pack.push({name:'mockups/TEKO-'+v+'.png',blob:mockup});
+ const began=performance.now();
+ onStage('جاري تجهيز موكابات الهودي...');
+ for(let index=0;index<REVIEW_VIEWS.length;index+=fastCloud?2:1){
+  const selected=REVIEW_VIEWS.slice(index,index+(fastCloud?2:1));
+  const files=await Promise.all(selected.map(async v=>{
+   const requestedFormat=fastCloud?'image/jpeg':'image/png';
+   const rendered=await makePreview(v,requestedFormat,0.92);
+   // Browsers without JPEG encoding may fall back to PNG. Match file extensions to reality.
+   const ext=rendered.type==='image/jpeg'?'jpg':'png';
+   return {name:'mockups/TEKO-'+v+'.'+ext,blob:rendered};
+  }));
+  pack.push(...files);
+  onStage('تجهيز الموكابات '+Math.min(index+selected.length,REVIEW_VIEWS.length)+' من '+REVIEW_VIEWS.length+'...');
  }
+ onStage('جاري إضافة ملفات التصميم الأصلية...');
  const originals=await collectOriginalArtworks();
  for(const original of originals){
   pack.push({name:'artwork-original/'+original.name,blob:original.blob});
  }
  pack.push({name:'order/README-ar.txt',blob:new Blob([orderSheetText(code)],{type:'text/plain;charset=utf-8'})});
  pack.push({name:'order/details.json',blob:new Blob([JSON.stringify(orderObject(code),null,2)],{type:'application/json'})});
- return window.TEKO_PACKAGE.bundle(pack);
+ onStage('جاري تجميع ملف ZIP...');
+ const zip=await window.TEKO_PACKAGE.bundle(pack);
+ if(fastCloud){
+  const mb=(zip.size/(1024*1024)).toFixed(1);
+  onStage('ZIP جاهز: '+mb+' MB خلال '+Math.round((performance.now()-began)/1000)+' ثانية؛ جاري الإرسال...');
+ }
+ return zip;
 }
 async function saveOrderPackage(){
  if(hasErrors()){notify('صحح مكان الطباعة الممنوع أولًا');return;}

@@ -789,7 +789,7 @@ const CLOUD_URL=String(ORDER_CLOUD.functionUrl||ORDER_CLOUD.workerUrl||'').repla
 const CLOUD_ACTIVE=(()=>{
  try{
   const url=new URL(CLOUD_URL);
-  return url.protocol==='https:'&&!!ORDER_CLOUD.turnstileSiteKey;
+  return ORDER_CLOUD.enabled===true&&url.protocol==='https:'&&!!ORDER_CLOUD.turnstileSiteKey;
  }catch{return false}
 })();
 let turnstileToken=null,turnstileWidget=null,cloudUploading=false;

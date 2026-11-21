@@ -570,11 +570,171 @@ async function collectFiles(){let files=[];const views=[...new Set(designs.map(d
  for(const d of designs){if(d.kind==='image'&&d.src){try{const blob=await(await fetch(d.src)).blob();files.push(new File([blob],d.sourceName||('artwork-'+d.id+'.png'),{type:blob.type||'image/png'}))}catch{}}}
  return files}
 $('downloadBtn').addEventListener('click',async()=>{if(hasErrors()){notify('صحح مكان التصميم أولًا');return}try{const files=await collectFiles();files.forEach((f,i)=>setTimeout(()=>saveBlob(f,f.name),150*i));notify('الملفات جاهزة للتنزيل؛ اسمح بتنزيل الملفات المتعددة لو طلب المتصفح')}catch{notify('تعذر تجهيز الملفات')}});
+// V10: preview all four angles and package mockups, original art and a production sheet.
+const REVIEW_VIEWS=['front','back','left','right'];
+let orderDraftCode=null,packageBusy=false,reviewGeneration=0;
+let reviewUrls=[];
+const orderCode=()=>orderDraftCode||(orderDraftCode='TK-'+Date.now().toString().slice(-8));
+function cleanFilename(str){
+ return String(str||'artwork').replace(/[\\/:*?"<>|\x00-\x1F]/g,'_').replace(/^\.+/,'').slice(0,78)||'artwork';
+}
+function orderObject(code){
+ const quantity=Math.max(1,parseInt($('quantity').value)||1);
+ return {
+  code,created:new Date().toISOString(),
+  customer:{name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),address:$('address').value.trim(),notes:$('notes').value.trim()},
+  item:{name:'Oversize Hoodie',color:color[0],size,quantity,unitPrice:price(),basePrice:store.price,discountPercent:store.discount,totalBeforeShipping:quantity*price()},
+  print:{maxWidthCm:40,maxHeightCm:45,warning:'Preview measurements and printable areas are approximate and must be confirmed for production.'},
+  designs:designs.map((d,index)=>({
+   number:index+1,view:d.view,viewArabic:VIEW_NAMES[d.view],kind:d.kind,
+   name:d.sourceName||null,text:d.kind==='text'?d.text:null,font:d.kind==='text'?d.font:null,
+   fontWeight:d.kind==='text'?(d.fontWeight||900):null,
+   fontScale:d.kind==='text'?(d.fontScale||1):null,color:d.kind==='text'?d.color:null,
+   widthCm:Number(d.w.toFixed(2)),heightCm:Number(d.h.toFixed(2)),
+   relativePosition:{x:Number(d.x.toFixed(5)),y:Number(d.y.toFixed(5))}
+  }))
+ };
+}
+function orderSheetText(code){
+ const data=orderObject(code);
+ const lines=[
+  'TEKO STORE | ملخص طلب الطباعة', 'رقم الطلب: '+code,
+  'التاريخ: '+new Date(data.created).toLocaleString('ar-EG'),
+  'العميل: '+(data.customer.name||'لم يكتب'),
+  'الموبايل: '+(data.customer.phone||'لم يكتب'),
+  'عنوان الاستلام: '+(data.customer.address||'غير محدد'),
+  'اللون: '+data.item.color,
+  'مقاس الهودي: '+data.item.size,
+  'الكمية: '+data.item.quantity,
+  'سعر القطعة: '+data.item.unitPrice+' جنيه',
+  'الإجمالي قبل الشحن: '+data.item.totalBeforeShipping+' جنيه',
+  'ملاحظات العميل: '+(data.customer.notes||'لا يوجد'),
+  '', 'تفاصيل التصميمات:'
+ ];
+ for(const d of data.designs){
+  lines.push(d.number+') '+d.viewArabic+' | '+(d.kind==='text'?'نص: '+d.text:'ملف: '+d.name)+
+    ' | '+d.widthCm+' × '+d.heightCm+' سم'+
+    (d.kind==='text'?' | خط: '+d.font+' | لون: '+d.color:'')+
+    ' | X: '+(d.relativePosition.x*100).toFixed(1)+'% Y: '+(d.relativePosition.y*100).toFixed(1)+'%');
+ }
+ if(!data.designs.length)lines.push('بدون طباعة');
+ lines.push('', 'تنبيه: مساحات الطباعة المعروضة تقريبية ويجب تأكيدها قبل الإنتاج.',
+  'هذه الحزمة تم تجهيزها محليًا ولم يتم إرسالها تلقائيًا إلى واتساب.');
+ return '\ufeff'+lines.join('\r\n');
+}
+async function buildOrderPackage(code){
+ const pack=[];
+ const chosen=color[0];
+ for(const v of REVIEW_VIEWS){
+  const mockup=await makePreview(v);
+  pack.push({name:'mockups/TEKO-'+v+'.png',blob:mockup});
+ }
+ const originals=new Set();
+ for(let i=0;i<designs.length;i++){
+  const d=designs[i];
+  if(d.kind!=='image'||!d.src||originals.has(d.src))continue;
+  originals.add(d.src);
+  try{
+   const response=await fetch(d.src);
+   if(!response.ok)throw Error('Artwork unavailable');
+   let name=cleanFilename(d.sourceName||'design');
+   if(!/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(name))name+='.png';
+   pack.push({name:'artwork/'+String(i+1).padStart(2,'0')+'-'+name,blob:await response.blob()});
+  }catch(error){
+   throw new Error('تعذر تجهيز التصميم الأصلي: '+(d.sourceName||'ملف غير معروف'));
+  }
+ }
+ pack.push({name:'order/README-ar.txt',blob:new Blob([orderSheetText(code)],{type:'text/plain;charset=utf-8'})});
+ pack.push({name:'order/details.json',blob:new Blob([JSON.stringify(orderObject(code),null,2)],{type:'application/json'})});
+ return window.TEKO_PACKAGE.bundle(pack);
+}
+async function saveOrderPackage(){
+ if(hasErrors()){notify('صحح مكان الطباعة الممنوع أولًا');return;}
+ if(packageBusy)return;
+ packageBusy=true;
+ const buttons=[$('downloadPackageBtn'),$('reviewDownload')];
+ buttons.forEach(b=>{b.disabled=true;b.dataset.oldLabel=b.textContent;b.textContent='جاري تجهيز ملف الطلب...'});
+ $('reviewStatus').textContent='جاري تجهيز الصور الأربع والملفات الأصلية. لا تقفل الصفحة أثناء تجهيز الملف.';
+ try{
+  const code=orderCode();
+  const zip=await buildOrderPackage(code);
+  saveBlob(zip,'TEKO-ORDER-'+code+'.zip');
+  $('reviewStatus').textContent='تم تجهيز الملف. افتح واتساب وأرفق ZIP يدويًا حتى يصل للمتجر.';
+  notify('تم تجهيز ملف الطلب '+code+' للتحميل');
+ }catch(error){
+  $('reviewStatus').textContent='تعذر تجهيز الملف: '+error.message;
+  notify('تعذر تجهيز ملف ZIP: '+error.message);
+ }finally{
+  buttons.forEach(b=>{b.disabled=false;b.textContent=b.dataset.oldLabel});
+  packageBusy=false;
+ }
+}
+$('downloadPackageBtn').addEventListener('click',saveOrderPackage);
+$('reviewDownload').addEventListener('click',saveOrderPackage);
+const reviewModal=$('reviewModal');
+let reviewFocus=null;
+function closeReview(){
+ reviewGeneration++;
+ reviewModal.hidden=true;
+ for(const u of reviewUrls)URL.revokeObjectURL(u);
+ reviewUrls=[];
+ if(reviewFocus&&document.contains(reviewFocus))reviewFocus.focus();
+}
+function renderReviewFacts(){
+ const facts=[
+  ['اللون',color[0]],['مقاس الهودي',size],['الكمية',String(Math.max(1,parseInt($('quantity').value)||1))],
+  ['إجمالي الطلب قبل الشحن',(Math.max(1,parseInt($('quantity').value)||1)*price()).toLocaleString('ar-EG')+' ج.م']
+ ];
+ const factsWrap=$('reviewFacts');factsWrap.replaceChildren();
+ for(const [title,value] of facts){
+  const cell=document.createElement('div');cell.className='review-fact';
+  const small=document.createElement('span');small.textContent=title;
+  const bold=document.createElement('b');bold.textContent=value;
+  cell.append(small,bold);factsWrap.append(cell);
+ }
+ $('reviewDetails').textContent=orderSheetText(orderCode()).replace(/^\ufeff/,'');
+}
+async function openOrderReview(){
+ if(hasErrors()){notify('صحح منطقة الطباعة أولًا لمراجعة الموكاب');return;}
+ reviewFocus=document.activeElement;
+ reviewModal.hidden=false;
+ $('reviewClose').focus();
+ renderReviewFacts();
+ const token=++reviewGeneration;
+ const row=$('reviewPhotos');row.replaceChildren();
+ $('reviewStatus').textContent='جاري تجهيز معاينات الأربع زوايا...';
+ for(const v of REVIEW_VIEWS){
+  const card=document.createElement('div');card.className='review-photo';
+  const image=document.createElement('img');image.alt='معاينة الهودي — '+VIEW_NAMES[v];
+  image.loading='lazy';
+  const caption=document.createElement('b');caption.textContent=VIEW_NAMES[v];
+  card.append(image,caption);row.append(card);
+  try{
+   const blob=await makePreview(v);
+   if(token!==reviewGeneration){return}
+   const url=URL.createObjectURL(blob);reviewUrls.push(url);image.src=url;
+  }catch(error){
+   caption.textContent=VIEW_NAMES[v]+' — المعاينة غير متاحة';
+  }
+ }
+ if(token===reviewGeneration)$('reviewStatus').textContent='اتأكد من شكل الهودي ومقاسات الطباعة. ملف ZIP لا يُرسل تلقائيًا، أرفقه يدويًا على واتساب.';
+}
+$('reviewOrderBtn').addEventListener('click',openOrderReview);
+$('reviewClose').addEventListener('click',closeReview);
+reviewModal.addEventListener('click',e=>{if(e.target===reviewModal)closeReview()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!reviewModal.hidden)closeReview()});
+$('reviewWhatsapp').addEventListener('click',()=>{$('whatsappBtn').click()});
+
 function orderMessage(code){const qty=Math.max(1,parseInt($('quantity').value)||1);return `🛍️ طلب جديد — TEKO STORE\nرقم الطلب: ${code}\nالعميل: ${$('customerName').value.trim()||'غير محدد'}\nهاتف: ${$('customerPhone').value.trim()||'غير محدد'}\nالمنتج: Oversize Hoodie\nاللون: ${color[0]}\nالمقاس: ${size}\nالكمية: ${qty}\nسعر القطعة: ${price()} جنيه${store.discount?' (خصم '+store.discount+'%)':''}\nالإجمالي قبل الشحن: ${qty*price()} جنيه\n\nتفاصيل الطباعة:\n${designs.map((d,i)=>`${i+1}. ${VIEW_NAMES[d.view]} — ${d.kind==='text'?'عبارة: '+d.text:'تصميم: '+d.sourceName} — عرض ${(+d.w).toFixed(1)} سم × ارتفاع ${(+d.h).toFixed(1)} سم — الموضع النسبي (${(d.x*100).toFixed(1)}%, ${(d.y*100).toFixed(1)}%)${d.kind==='text'?' — الخط '+d.font+' — اللون '+d.color:''}`).join('\n')||'بدون طباعة'}\n\nالعنوان: ${$('address').value.trim()||'لم يُحدد'}\nالملاحظات: ${$('notes').value.trim()||'لا يوجد'}\n\nملاحظة: معاينات الطلب وملفات التصميم تحتاج إرفاقًا أو رابط تخزين منفصل.`}
 function validateOrder(){if(hasErrors()){notify('ممنوع تأكيد طلب داخل منطقة الطباعة المحظورة');return false}if(!$('customerName').value.trim()){notify('اكتب اسم العميل أولًا');$('customerName').focus();return false}if(!/^01\d{9}$/.test($('customerPhone').value.trim())){notify('اكتب رقم موبايل مصري صحيح (11 رقم)');$('customerPhone').focus();return false}return true}
-function recordOrder(code){store.orders.unshift({code,date:new Date().toISOString(),name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),qty:Math.max(1,+$('quantity').value||1),color:color[0],size,total:price()*Math.max(1,+$('quantity').value||1),views:[...new Set(designs.map(d=>d.view))]});persist();renderOrders()}
-$('whatsappBtn').addEventListener('click',()=>{if(!validateOrder())return;const code='TK-'+Date.now().toString().slice(-8);recordOrder(code);const msg=orderMessage(code);window.open('https://wa.me/201557229102?text='+encodeURIComponent(msg),'_blank','noopener');notify('تم فتح رسالة واتساب. الصور تحتاج إرفاقها يدويًا أو ربط تخزين سحابي.');});
-$('shareBtn').addEventListener('click',async()=>{if(!validateOrder())return;const code='TK-'+Date.now().toString().slice(-8);try{const files=await collectFiles();if(navigator.canShare?.({files})){await navigator.share({files,title:'TEKO STORE '+code,text:orderMessage(code)});recordOrder(code);notify('تم فتح مشاركة الملفات؛ اختار واتساب وحدد رقم المتجر')}else{notify('المتصفح لا يدعم مشاركة ملفات؛ استخدم تنزيل الملفات وفتح واتساب')}}catch(e){if(e.name!=='AbortError')notify('تعذر مشاركة الملفات على هذا الجهاز')}});
+function recordOrder(code){
+ const item={code,date:new Date().toISOString(),name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),qty:Math.max(1,+$('quantity').value||1),color:color[0],size,total:price()*Math.max(1,+$('quantity').value||1),views:[...new Set(designs.map(d=>d.view))]};
+ const found=store.orders.findIndex(o=>o.code===code);
+ if(found>=0)store.orders[found]=item;else store.orders.unshift(item);
+ persist();renderOrders();
+}
+$('whatsappBtn').addEventListener('click',()=>{if(!validateOrder())return;const code=orderCode();recordOrder(code);const msg=orderMessage(code);window.open('https://wa.me/201557229102?text='+encodeURIComponent(msg),'_blank','noopener');notify('تم فتح رسالة واتساب. الصور تحتاج إرفاقها يدويًا أو ربط تخزين سحابي.');});
+$('shareBtn').addEventListener('click',async()=>{if(!validateOrder())return;const code=orderCode();try{const files=await collectFiles();if(navigator.canShare?.({files})){await navigator.share({files,title:'TEKO STORE '+code,text:orderMessage(code)});recordOrder(code);notify('تم فتح مشاركة الملفات؛ اختار واتساب وحدد رقم المتجر')}else{notify('المتصفح لا يدعم مشاركة ملفات؛ استخدم تنزيل الملفات وفتح واتساب')}}catch(e){if(e.name!=='AbortError')notify('تعذر مشاركة الملفات على هذا الجهاز')}});
 function renderOrders(){$('orders').innerHTML=store.orders.length?store.orders.map(o=>`<div class="order"><b>${escapeHTML(o.code)}</b> · ${escapeHTML(o.name)} · ${o.total} ج.م<br>${escapeHTML(o.color)} · ${escapeHTML(o.size)} · ${o.qty} قطعة · محفوظ محليًا</div>`).join(''):'لا توجد طلبات محلية حتى الآن.'}
 $('adminToggle').addEventListener('click',()=>{$('admin').classList.toggle('show');if($('admin').classList.contains('show'))$('admin').scrollIntoView({behavior:'smooth'})});
 $('savePrice').addEventListener('click',()=>{store.price=Math.max(0,Number($('adminPrice').value)||650);store.discount=Math.max(0,Math.min(95,Number($('adminDiscount').value)||0));persist();renderPrice();notify('تم تحديث السعر محليًا في هذه التجربة')});

@@ -844,7 +844,12 @@ function setupOrderCloud(){
  const notice=$('cloudNotice');
  if(notice)notice.innerHTML='بعد الضغط على الزر، سيتم رفع ملف الطلب ZIP لمساحة تخزين خاصة وإضافة <b>رابط تحميل آمن إلى رسالة واتساب</b>. الرابط صالح لمدة 7 أيام. اضغط إرسال داخل واتساب لإتمام الطلب.';
  cloudMessage('أكمل التحقق الأمني لرفع ملف ZIP وتوليد رابط التحميل.');
- const script=document.createElement('script');
+ // Storefront opens on Home; load the Turnstile challenge only when studio
+ // becomes visible. Rendering it inside a display:none parent can leave a blank widget.
+ window.TEKO_START_SECURITY=()=>{
+  if(document.querySelector('script[data-teko-turnstile]'))return;
+  const script=document.createElement('script');
+  script.dataset.tekoTurnstile='1';
  script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
  script.async=true;
  script.onload=()=>{
@@ -859,7 +864,9 @@ function setupOrderCloud(){
   }catch(error){cloudMessage('تعذر إعداد التحقق الأمني: '+(error.message||'خطأ'))}
  };
  script.onerror=()=>cloudMessage('تعذر تحميل خدمة التحقق الأمني. راجع الاتصال بالإنترنت.');
- document.head.appendChild(script);
+  document.head.appendChild(script);
+ };
+ if(!$('studioView')?.hidden)window.TEKO_START_SECURITY();
 }
 async function supabaseAction(action,body){
  const controller=new AbortController();

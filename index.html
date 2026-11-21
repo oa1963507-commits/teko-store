@@ -4,6 +4,10 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TEKO STORE | صمّم هوديك بطريقتك</title>
 <meta name="theme-color" content="#08080b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TEKO STORE">
+<link rel="manifest" href="manifest.webmanifest?v=36">
 <meta name="description" content="صمّم هوديك في TEKO STORE: اختار اللون والمقاس، أضف تصميمك الخاص، واحفظ تخصيصاتك في السلة لإتمام طلبك وقت ما تحب.">
 <meta name="robots" content="noindex,nofollow">
 <style>
@@ -91,17 +95,24 @@
 @media(max-width:800px){.stageactions{flex-wrap:wrap}.draft-status{max-width:100%;width:100%;text-align:right}}
 </style>
 <link rel="stylesheet" href="storefront.css?v=35">
+<link rel="stylesheet" href="mobile.css?v=36">
 </head>
 <body>
 <header class="site-header">
  <a class="site-logo" href="#home" aria-label="TEKO STORE — الرئيسية">TEKO <b>STORE</b><small>PREMIUM STREETWEAR</small></a>
- <nav class="site-nav" aria-label="القائمة الرئيسية">
+ <nav class="site-nav" id="siteNav" aria-label="القائمة الرئيسية">
   <a href="#home" data-route="home">الرئيسية</a>
   <a href="#studio" data-route="studio">استوديو التصميم</a>
   <a href="#designs" data-route="studio">معرض التصميمات</a>
  </nav>
+ <button class="site-menu-toggle" id="mobileMenuToggle" type="button" aria-controls="siteNav" aria-expanded="false" aria-label="فتح القائمة"><span class="menu-bars" aria-hidden="true"></span></button>
  <a class="site-cart-btn" href="#cart" data-route="cart" aria-label="الانتقال لسلة مشترياتك">السلة <span class="cart-counter" id="cartCount">0</span></a>
 </header>
+<nav class="mobile-dock" aria-label="التنقل السريع على الهاتف">
+ <a href="#home" data-route="home"><span class="dock-icon" aria-hidden="true">⌂</span><span>الرئيسية</span></a>
+ <a href="#studio" data-route="studio"><span class="dock-icon" aria-hidden="true">✦</span><span>صمّم هوديك</span></a>
+ <a href="#cart" data-route="cart"><span class="dock-icon" aria-hidden="true">▣</span><span>السلة</span></a>
+</nav>
 <section class="home-page" id="home">
  <div class="home-hero">
   <div class="home-copy">
@@ -238,5 +249,6 @@
 <script src="app.js?v=33"></script>
 <script src="drafts.js?v=16"></script>
 <script src="cart.js?v=33"></script>
+<script src="mobile.js?v=36"></script>
 
 </body></html>

@@ -1,0 +1,177 @@
+/* TEKO STORE V40 — seven-second cinematic brand intro.
+   Pure CSS animation, approved icon only; no image generation or remote calls. */
+:root{--teko-intro-duration:7000ms}
+body.teko-intro-active{overflow:hidden!important;overscroll-behavior:none}
+.teko-intro[hidden]{display:none!important}
+.teko-intro{
+ position:fixed;inset:0;z-index:2147483000;
+ display:flex;align-items:center;justify-content:center;
+ width:100%;height:100dvh;min-height:100vh;
+ isolation:isolate;overflow:hidden;pointer-events:auto;
+ background:#030306;color:#fff;font-family:Impact,"Arial Black",Cairo,Tahoma,sans-serif;
+ animation:teko-intro-curtain var(--teko-intro-duration) linear 1 both
+}
+.teko-intro::before{
+ content:"";position:absolute;inset:-30%;z-index:-2;
+ background:
+ radial-gradient(ellipse 34% 30% at 54% 50%,#a50a29a8 0,transparent 75%),
+ radial-gradient(ellipse 26% 26% at 22% 60%,#5d061aae 0,transparent 72%),
+ radial-gradient(ellipse 29% 27% at 83% 23%,#6a0a1fb0 0,transparent 72%);
+ filter:blur(75px);opacity:.85;
+ animation:teko-intro-fog 7s ease-in-out both
+}
+.teko-intro::after{
+ content:"";position:absolute;inset:0;z-index:7;pointer-events:none;
+ background:radial-gradient(ellipse 57% 56% at center,transparent 10%,#0007 65%,#000d 100%);
+}
+.teko-intro__grid{
+ position:absolute;inset:0;z-index:-1;pointer-events:none;
+ background:
+ repeating-linear-gradient(0deg,transparent 0 58px,#f5395410 59px,transparent 60px),
+ repeating-linear-gradient(90deg,transparent 0 58px,#f5395410 59px,transparent 60px);
+ opacity:.3;transform:perspective(850px) rotateX(13deg) scale(1.2);
+ mask-image:radial-gradient(ellipse 65% 65% at center,#000,transparent)
+}
+.teko-intro__orb{
+ position:absolute;width:min(80vw,650px);aspect-ratio:1;z-index:0;
+ border:1px solid #ff39531c;border-radius:50%;pointer-events:none;
+ box-shadow:0 0 0 42px #d8162910,0 0 0 100px #d8162908,inset 0 0 90px #fb193d12;
+ animation:teko-intro-orb 7s ease-in-out both
+}
+.teko-intro__inner{
+ position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;width:min(93vw,690px);max-height:90dvh;text-align:center;
+ padding:clamp(18px,5vw,42px);
+}
+.teko-intro__overline{
+ font-family:Cairo,Tahoma,sans-serif;font-size:clamp(10px,2.6vw,12px);
+ color:#ffb6c1;font-weight:800;letter-spacing:.4em;text-transform:uppercase;
+ margin:0 0 -5px;opacity:0;
+ animation:teko-intro-overline 7s linear both
+}
+.teko-intro__logo-wrap{
+ position:relative;display:grid;place-items:center;
+ width:clamp(215px,61vmin,490px);aspect-ratio:1;
+ max-width:100%;max-height:62dvh;
+}
+.teko-intro__logo-wrap::before{
+ content:"";position:absolute;inset:9%;border-radius:50%;
+ background:#fa143c67;filter:blur(62px);
+ animation:teko-intro-aura 7s ease-out both;pointer-events:none
+}
+.teko-intro__logo{
+ display:block;width:100%;height:100%;object-fit:contain;position:relative;z-index:2;
+ mix-blend-mode:screen;
+ -webkit-mask-image:radial-gradient(circle at center,#000 39%,#000e 58%,transparent 73%);
+ mask-image:radial-gradient(circle at center,#000 39%,#000e 58%,transparent 73%);
+ filter:drop-shadow(0 0 25px #e81c44a6) contrast(1.15);
+ animation:teko-intro-logo 7s cubic-bezier(.16,.77,.3,1) both;
+ transform-origin:center;
+}
+.teko-intro__sweep{
+ position:absolute;inset:18% 7%;z-index:4;pointer-events:none;opacity:0;
+ background:linear-gradient(105deg,transparent 38%,#ffffff19 47%,#ffffffa6 50%,#ffffff1a 53%,transparent 61%);
+ transform:translateX(115%) skewX(-13deg);mix-blend-mode:screen;
+ animation:teko-intro-shine 7s ease-in-out both
+}
+.teko-intro__tagline{
+ font-family:Cairo,Tahoma,sans-serif;color:#fff;font-weight:900;
+ font-size:clamp(12px,3vw,19px);line-height:1.75;
+ letter-spacing:.24em;margin:-8px 0 0;
+ text-shadow:0 0 28px #ec284982;
+ opacity:0;animation:teko-intro-tag 7s ease-out both
+}
+.teko-intro__tagline span{color:#ff405c}
+.teko-intro__subline{
+ font-family:Cairo,Tahoma,sans-serif;color:#cbadba;
+ font-size:clamp(10px,2.4vw,12px);font-weight:700;
+ letter-spacing:.06em;margin:8px 0 0;
+ opacity:0;animation:teko-intro-subline 7s ease-out both
+}
+.teko-intro__bottom{
+ position:absolute;bottom:max(25px,env(safe-area-inset-bottom,0px) + 20px);
+ left:50%;z-index:8;transform:translateX(-50%);
+ width:min(310px,65vw);display:flex;align-items:center;gap:12px;flex-direction:column
+}
+.teko-intro__loader{
+ width:100%;height:2px;border-radius:4px;background:#ffffff31;overflow:hidden
+}
+.teko-intro__loader::before{
+ content:"";display:block;width:100%;height:100%;
+ transform:scaleX(0);transform-origin:right;
+ background:linear-gradient(90deg,#f0233e,#ff99a9);
+ box-shadow:0 0 15px #f23a5b;
+ animation:teko-intro-progress 7s linear both
+}
+.teko-intro__bottom small{
+ font:700 10px/1.6 Cairo,Tahoma,sans-serif;color:#aa8b98;letter-spacing:2px
+}
+@keyframes teko-intro-curtain{
+ 0%,89%{opacity:1;visibility:visible}
+ 96%{opacity:.5;visibility:visible}
+ 100%{opacity:0;visibility:hidden}
+}
+@keyframes teko-intro-fog{
+ 0%{transform:scale(.8) rotate(-7deg);opacity:.05}
+ 25%{opacity:.85}64%{opacity:1}
+ 100%{transform:scale(1.25) rotate(12deg);opacity:.6}
+}
+@keyframes teko-intro-orb{
+ 0%{transform:rotate(0) scale(.68);opacity:0}
+ 28%{opacity:.8}
+ 73%{opacity:1}
+ 100%{transform:rotate(28deg) scale(1.22);opacity:0}
+}
+@keyframes teko-intro-overline{
+ 0%,13%{opacity:0;transform:translateY(13px)}
+ 26%,78%{opacity:1;transform:translateY(0)}
+ 90%,100%{opacity:0}
+}
+@keyframes teko-intro-logo{
+ 0%,12%{opacity:0;transform:translateY(33px) scale(.74);filter:blur(24px) brightness(.7)}
+ 26%{opacity:1;filter:blur(0) brightness(1.22)}
+ 38%,74%{opacity:1;transform:translateY(0) scale(1);filter:blur(0) brightness(1)}
+ 86%{opacity:1;transform:scale(1.075);filter:brightness(1.4)}
+ 100%{opacity:0;transform:scale(1.3);filter:blur(17px) brightness(1.9)}
+}
+@keyframes teko-intro-aura{
+ 0%,10%{opacity:0;transform:scale(.5)}
+ 31%{opacity:1;transform:scale(1.1)}
+ 77%{opacity:.85}
+ 100%{opacity:0;transform:scale(1.7)}
+}
+@keyframes teko-intro-shine{
+ 0%,36%{opacity:0;transform:translateX(115%) skewX(-13deg)}
+ 40%{opacity:1}
+ 60%{opacity:.9}
+ 68%,100%{opacity:0;transform:translateX(-120%) skewX(-13deg)}
+}
+@keyframes teko-intro-tag{
+ 0%,37%{opacity:0;transform:translateY(16px)}
+ 48%,78%{opacity:1;transform:translateY(0)}
+ 92%,100%{opacity:0;transform:translateY(-10px)}
+}
+@keyframes teko-intro-subline{
+ 0%,51%{opacity:0;transform:translateY(10px)}
+ 62%,82%{opacity:1;transform:translateY(0)}
+ 94%,100%{opacity:0}
+}
+@keyframes teko-intro-progress{
+ from{transform:scaleX(0)}to{transform:scaleX(1)}
+}
+@media(max-width:520px){
+ .teko-intro__inner{padding:16px}
+ .teko-intro__logo-wrap{width:min(78vw,370px)}
+ .teko-intro__tagline{letter-spacing:.14em;margin-top:-3px}
+ .teko-intro__overline{letter-spacing:.19em}
+ .teko-intro__bottom{bottom:max(20px,env(safe-area-inset-bottom,0px) + 14px)}
+}
+@media(prefers-reduced-motion:reduce){
+ /* Honor motion preferences while maintaining the requested 7-second duration. */
+ .teko-intro *, .teko-intro::before,.teko-intro::after{
+  animation:none!important;transition:none!important
+ }
+ .teko-intro__overline,.teko-intro__tagline,.teko-intro__subline{opacity:1}
+ .teko-intro__logo{opacity:1;transform:none;filter:none}
+ .teko-intro__loader::before{transform:scaleX(1)}
+}

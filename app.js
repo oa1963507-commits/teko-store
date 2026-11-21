@@ -46,7 +46,7 @@ let store;try{store={...DEFAULT,...JSON.parse(localStorage.getItem('teko-store-d
 let view='front',color=COLORS[2],size='M',designs=[],selectedId=null,history=[],future=[],showTools=true,photoCache={},lastFile=null,dragging=null,toastTimer=null;
 const canvas=$('hoodCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true}),layer=$('designLayer');
 const printCanvas=$('printCanvas'),printCtx=printCanvas.getContext('2d');
-function persist(){try{localStorage.setItem('teko-store-demo',JSON.stringify(store))}catch{notify('ذاكرة المتصفح امتلأت. المعرض الكبير يحتاج تخزين سحابي.')}}
+function persist(){try{localStorage.setItem('teko-store-demo',JSON.stringify(store));return true}catch{notify('مساحة حفظ المتصفح امتلأت. معرض التصميمات هنا محلي ولا يستخدم Supabase؛ قلّل حجم الصور أو عددها.');return false}}
 function notify(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',3500)}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
 function id(){return 'd'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -1199,6 +1199,6 @@ async function prepareTemporaryCheckout(code=orderCode()){
 function renderOrders(){$('orders').innerHTML=store.orders.length?store.orders.map(o=>`<div class="order"><b>${escapeHTML(o.code)}</b> · ${escapeHTML(o.name)} · ${o.total} ج.م<br>${escapeHTML(o.color)} · ${escapeHTML(o.size)} · ${o.qty} قطعة · محفوظ محليًا</div>`).join(''):'لا توجد طلبات محلية حتى الآن.'}
 $('adminToggle').addEventListener('click',()=>{$('admin').classList.toggle('show');if($('admin').classList.contains('show'))$('admin').scrollIntoView({behavior:'smooth'})});
 $('savePrice').addEventListener('click',()=>{store.price=Math.max(0,Number($('adminPrice').value)||650);store.discount=Math.max(0,Math.min(95,Number($('adminDiscount').value)||0));persist();renderPrice();notify('تم تحديث السعر محليًا في هذه التجربة')});
-$('adminAddDesign').addEventListener('click',async()=>{const name=$('adminDesignName').value.trim(),file=$('adminDesignFile').files[0];if(!name||!file){notify('أدخل الاسم واختر ملف التصميم');return}if(file.size>2*1024*1024){notify('ملفات المعرض التجريبي أقل من 2 ميجا؛ التخزين السحابي يدعم أحجام أكبر');return}const src=await fileData(file);store.gallery.unshift({id:id(),name,src});persist();renderGallery();$('adminDesignName').value='';$('adminDesignFile').value='';notify('تمت الإضافة إلى معرض هذا المتصفح')});
+$('adminAddDesign').addEventListener('click',async()=>{const name=$('adminDesignName').value.trim(),file=$('adminDesignFile').files[0];if(!name||!file){notify('أدخل الاسم واختر ملف التصميم');return}if(file.size>2*1024*1024){notify('حد الصورة في المعرض المحلي 2 ميجابايت. رفع تصميمات المعرض لا يستخدم Supabase.');return}const src=await fileData(file);store.gallery.unshift({id:id(),name,src});if(!persist()){store.gallery.shift();return}renderGallery();$('adminDesignName').value='';$('adminDesignFile').value='';notify('تمت إضافة التصميم محليًا لهذا المتصفح فقط — بدون استخدام Supabase')});
 // Initialize
 renderAll();renderPrice();renderGallery();renderOrders();loadImages();

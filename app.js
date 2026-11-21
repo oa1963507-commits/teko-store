@@ -14,8 +14,18 @@ function loadRealPhoto(colorName,targetView){
  if(colorPhotoRequests[key])return colorPhotoRequests[key];
  return colorPhotoRequests[key]=new Promise(resolve=>{
   const image=new Image();
-  image.onload=()=>{colorPhotoCache[key]=image;resolve(image);if(color[0]===colorName&&view===targetView)drawBackground()};
-  image.onerror=()=>resolve(null); // Existing preview fallback until the new image is uploaded.
+  image.decoding='async';
+  image.onload=()=>{
+   delete colorPhotoRequests[key];
+   colorPhotoCache[key]=image;
+   resolve(image);
+   if(color[0]===colorName&&view===targetView)drawBackground();
+  };
+  image.onerror=()=>{
+   delete colorPhotoRequests[key]; // Allow retry instead of storing a failed request forever.
+   resolve(null);
+   if(color[0]===colorName&&view===targetView)drawBackground(true);
+  };
   image.src=realPhotoPath(colorName,targetView);
  });
 }
@@ -121,57 +131,28 @@ function violations(d){
 function hasErrors(){return designs.some(d=>violations(d).length>0)}
 function snapshot(){history.push(JSON.stringify(designs));if(history.length>40)history.shift();future=[]}
 function current(){return designs.find(d=>d.id===selectedId)}
-// Material-aware color grading: preserve the photographic fabric relief without
-// multiplying bright palette RGB values into clipped highlights.
-// Each recipe targets the *fabric appearance*, not the UI swatch brightness.
-// Neutral tones deliberately remove the olive chroma from the original image.
-const FABRIC_GRADES={
-  'أبيض':   {rgb:[217,217,214],contrast:38,blackPoint:11,whitePoint:247},
-  'أسود':   {rgb:[32,33,36],contrast:18,blackPoint:7,whitePoint:109},
-  'برجندي': {rgb:[107,49,67],contrast:29,blackPoint:9,whitePoint:200},
-  'كحلي':   {rgb:[46,61,83],contrast:29,blackPoint:8,whitePoint:190},
-  'رمادي':  {rgb:[135,137,139],contrast:33,blackPoint:10,whitePoint:220},
-  'بيج':    {rgb:[195,186,173],contrast:34,blackPoint:11,whitePoint:239},
-  'بني':    {rgb:[112,83,72],contrast:32,blackPoint:9,whitePoint:204}
-};
-function drawBackground(){
- const chosen=colorPhotoCache[realPhotoKey(color[0],view)];
- const image=chosen||photoCache[view];if(!image)return;
+// Only use the uploaded photo for the chosen color and angle.
+// Never fall back to olive recoloring or to a different color while an image loads.
+function drawBackground(failed=false){
+ const chosen=color[0]==='زيتي'?photoCache[view]:colorPhotoCache[realPhotoKey(color[0],view)];
+ const loading=$('photoLoading');
  ctx.clearRect(0,0,1122,1402);
- ctx.drawImage(image,0,0,1122,1402);
- if(chosen||color[0]==='زيتي'){scheduleInk();return;} // Draw supplied photography untouched.
- // Keep legacy preview only for colors whose files are not uploaded yet.
- const recipe=FABRIC_GRADES[color[0]];
- if(!recipe)return;
- let frame;
- try{frame=ctx.getImageData(0,0,1122,1402)}
- catch(err){notify('تعذر معالجة لون الصورة؛ شغّل النسخة كاملة.');return}
- const v=frame.data, target=recipe.rgb;
- for(let i=0;i<v.length;i+=4){
-   const r=v[i],g=v[i+1],b=v[i+2];
-   const chroma=Math.max(r,g,b)-Math.min(r,g,b);
-   // Chromatic screen isolates olive fabric from the neutral gray studio background.
-   let coverage=Math.min(1,Math.max(0,(chroma-7)/15)) *
-     Math.min(1,Math.max(0,(g-b-5)/13));
-   if(!(g>r*.78 && r>b*.97))coverage=0;
-   if(coverage<.012)continue;
-   const light=.30*r+.59*g+.11*b;
-   // Log lightness preserves folds across light/dark colors and avoids the
-   // clipped white/washed beige/flat orange brown of the previous RGB multiplier.
-   let delta=recipe.contrast*Math.log2((light+13)/85);
-   if(light<43)delta*=1.18; // Retain the sculpted depth in the hood and sleeve folds.
-   for(let c=0;c<3;c++){
-     // Soft highlight roll-off, useful especially for white and stone-beige.
-     let out=target[c]+delta;
-     if(out>recipe.whitePoint-12)out=recipe.whitePoint-12+12*(1-Math.exp(-(out-(recipe.whitePoint-12))/12));
-     out=Math.max(recipe.blackPoint,Math.min(recipe.whitePoint,out));
-     v[i+c]=Math.round(v[i+c]*(1-coverage)+out*coverage);
-   }
+ printCtx.clearRect(0,0,1122,1402);
+ if(!chosen){
+  if(loading){
+   loading.hidden=false;
+   loading.textContent=failed
+    ?'تعذر تحميل صورة '+color[0]+' — اختر اللون مرة أخرى لإعادة المحاولة'
+    :'جاري تحميل صورة الهودي '+color[0]+'...';
+  }
+  $('photo').setAttribute('aria-busy',String(!failed));
+  return;
  }
- ctx.putImageData(frame,0,0);
+ ctx.drawImage(chosen,0,0,1122,1402);
+ if(loading)loading.hidden=true;
+ $('photo').setAttribute('aria-busy','false');
  scheduleInk();
 }
-
 // V6: composite print as part of the cloth, not as a flat DOM image.
 const inkCache=new Map();
 let inkScheduled=false;
@@ -211,7 +192,7 @@ function drawInk(target,photo,targetView,quality){
 }
 function paintInk(){
  printCtx.clearRect(0,0,1122,1402);
- if(!photoCache[view]&&!colorPhotoCache[realPhotoKey(color[0],view)])return;
+ if(!(color[0]==='زيتي'?photoCache[view]:colorPhotoCache[realPhotoKey(color[0],view)]))return;
  drawInk(printCtx,canvas,view,false);
 }
 function scheduleInk(){

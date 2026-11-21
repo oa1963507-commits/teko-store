@@ -1,6 +1,9 @@
-// Public configuration only. Do not add API keys or secrets here.
-// Set these two values after deploying the Cloudflare Worker and adding a Turnstile widget.
+// TEKO STORE public client configuration — no secrets here.
+// Supabase backend uses TURNSTILE_SECRET and TEKO_HMAC_SECRET on server only.
+// Safe staging: until the public Turnstile Site Key is set, orders use local ZIP fallback.
 window.TEKO_CLOUD = {
-  workerUrl: '', // e.g. https://<your-worker>.workers.dev (without trailing slash)
-  turnstileSiteKey: '' // Cloudflare Turnstile PUBLIC site key
+  provider: 'supabase',
+  functionUrl: 'https://kopsyfhpcilafuesgjti.supabase.co/functions/v1/teko-order-link',
+  supabaseOrigin: 'https://kopsyfhpcilafuesgjti.supabase.co',
+  turnstileSiteKey: '' // Paste the Cloudflare Turnstile PUBLIC site key after the backend is ready.
 };

@@ -122,3 +122,57 @@ html{scroll-padding-top:92px}
 @media(prefers-reduced-motion:reduce){
  .site-menu-toggle .menu-bars,.site-menu-toggle .menu-bars::before,.site-menu-toggle .menu-bars::after{transition:none}
 }
+
+/* V39: install TEKO PWA from the three-line mobile navigation menu. */
+.site-nav .install-app-option{display:none}
+@media(max-width:850px){
+ .site-nav .install-app-option{
+  display:flex;flex-direction:row;align-items:center;gap:12px;text-align:right;
+  border:1px solid #96354b;background:linear-gradient(125deg,#531728,#29141d);
+  border-radius:12px;color:#fff;padding:12px 13px;min-height:66px;
+  width:100%;font-family:inherit;cursor:pointer
+ }
+ .site-nav .install-app-option:hover,.site-nav .install-app-option:focus-visible{
+  background:linear-gradient(125deg,#79213b,#381822);border-color:#fa5875
+ }
+ .site-nav .install-app-option:disabled{opacity:.6;cursor:default}
+ .install-app-icon{
+  display:grid;place-items:center;flex-shrink:0;width:39px;height:39px;
+  border-radius:11px;background:#ef1735;font:900 26px/1 Arial,sans-serif
+ }
+ .install-app-copy{display:flex;min-width:0;flex-direction:column;gap:3px}
+ .install-app-copy strong{font-size:14px;line-height:1.5}
+ .install-app-copy small{font-size:10px;color:#d8bfc7;line-height:1.5}
+}
+.install-help-overlay[hidden]{display:none!important}
+.install-help-overlay{
+ position:fixed;inset:0;z-index:220;display:flex;align-items:center;justify-content:center;
+ background:#040305e8;backdrop-filter:blur(7px);
+ padding:16px;overflow:auto;overscroll-behavior:contain
+}
+.install-help-dialog{
+ position:relative;width:min(420px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;
+ padding:27px 23px 22px;border-radius:22px;border:1px solid #793143;
+ background:linear-gradient(160deg,#24121d,#100e14 58%,#0a090c);
+ box-shadow:0 22px 70px #000c;color:#fff;text-align:right
+}
+.install-help-close{
+ position:absolute;top:11px;left:13px;display:grid;place-items:center;
+ width:40px;height:40px;border:1px solid #6d4350;border-radius:12px;
+ background:#271b25;color:#fff;font-size:25px;cursor:pointer
+}
+.install-help-logo{display:block;width:72px;height:72px;border-radius:18px;object-fit:cover;margin:0 0 15px;box-shadow:0 12px 28px #0007}
+.install-help-dialog h2{font-size:21px;line-height:1.5;margin:0 0 9px}
+.install-help-dialog>p{font-size:13px;color:#d4c5cc;line-height:1.85;margin:0 0 16px}
+.install-help-steps{margin:14px 0 18px;padding:0 22px 0 0;display:grid;gap:10px}
+.install-help-steps li{font-size:13px;line-height:1.8;padding-inline-start:3px;color:#fff}
+.install-help-steps li::marker{color:#ff526d;font-weight:900}
+.install-help-dialog .install-help-note{
+ border-top:1px solid #54303b;padding-top:13px;font-size:11px;line-height:1.8;color:#bfaab4
+}
+.install-help-done{
+ width:100%;min-height:48px;border:1px solid #ef1735;border-radius:12px;
+ background:#ef1735;color:#fff;font:900 14px Cairo,Tahoma,Arial,sans-serif;cursor:pointer
+}
+.install-help-done:hover{background:#ff3756}
+@media(max-width:365px){.install-help-dialog{padding:23px 16px 18px}.install-help-dialog h2{font-size:19px}}

@@ -40,6 +40,95 @@ function uuid(value: unknown): string | null {
   return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(s)?s:null;
 }
 
+// V28 owner reporting: scan at most 5,000 recent records in bounded pages.
+// If a store exceeds this size the API explicitly reports partial=true.
+// No PII is accessible without the existing Supabase Auth + owner UID guard.
+const REPORT_LIMIT = 5000;
+const REPORT_BATCH = 500;
+type ReportingRow = {
+  created_at: string; customer_name: string; customer_phone: string;
+  hoodie_color: string; quantity: number; total_quote_egp: string | number;
+  status: string;
+};
+async function readReportingRows(admin: ReturnType<typeof adminClient>, days: number) {
+  const cutoff = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : null;
+  const rows: ReportingRow[] = [];
+  let total = 0;
+  for (let offset = 0; offset < REPORT_LIMIT; offset += REPORT_BATCH) {
+    let query = admin.from("teko_orders")
+      .select("created_at,customer_name,customer_phone,hoodie_color,quantity,total_quote_egp,status",
+        {count: offset===0?"exact":undefined})
+      .order("created_at",{ascending:false})
+      .range(offset,offset+REPORT_BATCH-1);
+    if (cutoff) query = query.gte("created_at",cutoff);
+    const {data,error,count} = await query;
+    if (error) throw Error("Reporting query failed");
+    if (offset===0) total=count||0;
+    rows.push(...((data||[]) as ReportingRow[]));
+    if ((data||[]).length<REPORT_BATCH) break;
+  }
+  return {rows,total,partial:total>rows.length};
+}
+function quote(row: ReportingRow) {
+  const value=Number(row.total_quote_egp||0);
+  return Number.isFinite(value)&&value>0?value:0;
+}
+function customerGroup(rows: ReportingRow[]) {
+  const grouped=new Map<string,{
+    phone:string;name:string;orders:number;activeOrders:number;
+    quoteEGP:number;latestOrderAt:string;
+  }>();
+  for(const order of rows){
+    const phone=order.customer_phone;
+    if(!phone)continue;
+    let item=grouped.get(phone);
+    if(!item){
+      item={phone,name:order.customer_name||"بدون اسم",orders:0,
+        activeOrders:0,quoteEGP:0,latestOrderAt:order.created_at};
+      grouped.set(phone,item);
+    }
+    item.orders++;
+    if(order.status!=="cancelled")item.quoteEGP+=quote(order);
+    if(["new","reviewing","in_production","ready"].includes(order.status))item.activeOrders++;
+  }
+  return [...grouped.values()].sort((a,b)=>b.latestOrderAt.localeCompare(a.latestOrderAt));
+}
+function summary(rows: ReportingRow[],total: number,partial: boolean,days: number) {
+  const counts: Record<string,number>=Object.fromEntries(STATUS.map(s=>[s,0]));
+  let quoteEGP=0,deliveredQuoteEGP=0,qty=0,nonCancelled=0;
+  const daily=new Map<string,number>(),colorCounts=new Map<string,number>();
+  const today=new Date();
+  for(let d=6;d>=0;d--){
+    const date=new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()-d));
+    daily.set(date.toISOString().slice(0,10),0);
+  }
+  for(const row of rows){
+    if(counts[row.status]!==undefined)counts[row.status]++;
+    if(row.status!=="cancelled"){
+      nonCancelled++;
+      quoteEGP+=quote(row);
+      qty+=Math.max(0,Number(row.quantity)||0);
+      if(row.status==="delivered")deliveredQuoteEGP+=quote(row);
+      const color=String(row.hoodie_color||"غير محدد").slice(0,50);
+      colorCounts.set(color,(colorCounts.get(color)||0)+1);
+    }
+    const date=String(row.created_at).slice(0,10);
+    if(daily.has(date))daily.set(date,(daily.get(date)||0)+1);
+  }
+  const round=(n: number)=>Math.round(n*100)/100;
+  return {
+    periodDays:days,totalOrders:total,coveredOrders:rows.length,partial,
+    statusCounts:counts,uniqueCustomers:new Set(rows.map(r=>r.customer_phone).filter(Boolean)).size,
+    quotedTotalEGP:round(quoteEGP),
+    deliveredQuotedEGP:round(deliveredQuoteEGP),
+    averageQuoteEGP:nonCancelled?round(quoteEGP/nonCancelled):0,
+    totalPieces:qty,
+    dailyOrders:[...daily].map(([date,count])=>({date,count})),
+    popularColors:[...colorCounts].sort((a,b)=>b[1]-a[1]).slice(0,5)
+      .map(([color,count])=>({color,count})),
+  };
+}
+
 Deno.serve(async req=>{
   const origin=req.headers.get("Origin");
   if(req.method==="OPTIONS"&&origin===ORIGIN)return new Response(null,{status:204,headers:cors(origin)});
@@ -81,6 +170,29 @@ Deno.serve(async req=>{
       const {data,error,count}=await queryBuilder;
       if(error)throw Error("Orders query failed");
       return reply(origin,{orders:data||[],total:count||0,page,pageSize:PAGE_SIZE});
+    }
+    if(action==="dashboard"){
+      const days=Number(input.days);
+      if(![7,30,90,0].includes(days))return reply(origin,{error:"Invalid reporting period"},400);
+      const data=await readReportingRows(admin,days);
+      return reply(origin,{dashboard:summary(data.rows,data.total,data.partial,days)});
+    }
+    if(action==="customers"){
+      const page=Number(input.page)||0;
+      if(!Number.isSafeInteger(page)||page<0||page>1000)
+        return reply(origin,{error:"Invalid customer page"},400);
+      const text=String(input.search||"").normalize("NFKC").trim().slice(0,60).toLowerCase();
+      const data=await readReportingRows(admin,0);
+      const all=customerGroup(data.rows);
+      const matched=text?all.filter(customer=>
+        customer.name.toLowerCase().includes(text)||customer.phone.includes(text)
+      ):all;
+      const start=page*PAGE_SIZE;
+      return reply(origin,{
+        customers:matched.slice(start,start+PAGE_SIZE),
+        total:matched.length,page,pageSize:PAGE_SIZE,
+        coveredOrders:data.rows.length,partial:data.partial
+      });
     }
     if(action==="detail"){
       const id=uuid(input.id);

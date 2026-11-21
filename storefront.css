@@ -90,6 +90,10 @@ html{scroll-behavior:smooth}body{background:var(--teko-black);color:var(--teko-t
 #editor .quick-design-menu input[type=number]{background:#151319;color:#fff;border-color:#704c5d}
 #editor .checkout{scroll-margin-top:105px}
 #editor #designs{scroll-margin-top:95px}
+body.cart-checkout-active #editor.layout{grid-template-columns:minmax(0,800px);justify-content:center}
+body.cart-checkout-active #editor.layout .controls,body.cart-checkout-active #editor.layout .stagepanel{display:none}
+body.cart-checkout-active #editor.layout .checkout{width:100%;max-width:800px;margin:0 auto}
+body.cart-checkout-active #editor.layout .checkoutgrid{grid-template-columns:1fr 1fr}
 .editor-cart-actions{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
 .editor-cart-actions button{flex:1;min-width:160px}
 .cart-buy-hint{border:1px solid #743745;background:#351724;color:#ffd2db;border-radius:12px;padding:13px;font-size:12px;line-height:1.9;margin-bottom:14px}

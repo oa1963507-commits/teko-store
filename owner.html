@@ -54,6 +54,29 @@ footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);fo
 .muted-status{font-size:12px;color:var(--muted);min-height:18px}
 #customersPanel .tools{grid-template-columns:minmax(170px,1fr) auto}
 a.contact-link{color:#ae1d3b;text-decoration:underline}
+.storage-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:17px 0}
+.storage-metric{border:1px solid var(--edge);border-radius:12px;background:#fafbfc;padding:16px}
+.storage-metric span{font-size:12px;color:var(--muted);display:block}
+.storage-metric strong{font-size:23px;font-weight:900;display:block;margin:8px 0}
+.storage-track{height:17px;background:#e7e9ee;border-radius:20px;overflow:hidden;margin:8px 0}
+.storage-fill{width:0%;height:100%;background:#24a06c;border-radius:20px;transition:width .2s}
+.storage-fill.warning{background:#e8a627}.storage-fill.critical{background:#dd304d}
+.storage-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:16px 0}
+.storage-actions button.danger{background:#aa1834}
+.storage-actions button.ghost-danger{background:#fff0f1;color:#a31131;border:1px solid #f4b8c3}
+.storage-warning{padding:12px;border-radius:10px;background:#fff7ed;border:1px solid #f8d6a8;color:#8b581c;font-size:12px;line-height:1.9}
+.storage-confirm{background:#fff7f8;border:1px solid #edabb7;border-radius:12px;padding:17px;margin:16px 0}
+.storage-confirm label{font-weight:700;font-size:13px;display:block;margin:12px 0 6px}
+.storage-confirm input{max-width:390px}
+.storage-files{min-width:680px}
+.storage-files td{direction:ltr;text-align:right;white-space:nowrap}
+.storage-files td:first-child{width:50px;text-align:center}
+.storage-files th:first-child{text-align:center}
+.storage-files input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#db2644}
+.storage-progress{font-size:12px;line-height:1.8;color:var(--muted)}
+#storageStatus{min-height:22px;margin:7px 0}
+@media(max-width:700px){.storage-overview{grid-template-columns:1fr}.storage-metric strong{font-size:20px}}
+
 @media(max-width:980px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:740px){.report-grid{grid-template-columns:1fr}.kpi{min-height:105px}.kpi-value{font-size:23px}.flow-row{grid-template-columns:85px 1fr 30px}}
 @media(max-width:420px){.kpi-grid{grid-template-columns:1fr 1fr;gap:7px}.kpi{padding:11px}.kpi-value{font-size:20px}}
@@ -110,6 +133,7 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 <nav class="owner-tabs" id="ownerTabs" aria-label="أقسام الإدارة" hidden>
  <button type="button" id="tabOrders" aria-selected="true">الطلبات</button>
  <button type="button" id="tabCustomers" aria-selected="false">العملاء</button>
+ <button type="button" id="tabStorage" aria-selected="false" hidden>التخزين السحابي</button>
 </nav>
 <div class="panel" id="ordersPanel">
   <div class="row between"><h2>إدارة الطلبات</h2><span class="muted" id="orderCount"></span></div>
@@ -161,6 +185,61 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
    <button id="nextCustomerPage" type="button" class="alt">التالي</button>
   </div>
  </section>
+ <section class="panel" id="storagePanel" hidden>
+  <div class="row between">
+   <div><h2>إدارة مساحة التخزين السحابي</h2>
+    <p class="muted">مساحة ملفات ZIP في bucket <code>teko-orders</code>، وليست إجمالي استهلاك مشروع Supabase.</p></div>
+   <button type="button" class="alt" id="refreshStorage">تحديث المساحة</button>
+  </div>
+  <div class="storage-overview">
+   <div class="storage-metric"><span>المساحة المستخدمة في طلبات ZIP</span><strong id="storageUsed">—</strong>
+     <small id="storageFileCount">—</small></div>
+   <div class="storage-metric"><span>المتبقي التقديري من سعة 1 GB المجانية</span><strong id="storageFree">—</strong>
+     <small>قد تستخدم ملفات أخرى في المشروع جزءًا من السعة</small></div>
+   <div class="storage-metric"><span>نسبة استخدام السعة المرجعية</span><strong id="storagePercent">—</strong>
+     <small>المقياس تقديري وليس احتساب الفوترة الفعلي</small></div>
+  </div>
+  <div class="storage-track" role="progressbar" id="storageProgress" aria-label="نسبة استخدام مساحة ملفات ZIP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+   <div class="storage-fill" id="storageFill"></div>
+  </div>
+  <p class="storage-progress" id="storageDetail">جاري انتظار بيانات التخزين...</p>
+  <div class="storage-warning">
+   <strong>تنبيه قبل الحذف:</strong> حذف ZIP نهائي ولا يمكن التراجع عنه. رابط التحميل الموجود في رسالة واتساب سيتوقف عن العمل فور الحذف،
+   لكن بيانات الطلب وحالته ستظل موجودة في لوحة المالك. وظيفة الحذف التلقائي بعد 7 أيام ستستمر في العمل.
+  </div>
+  <div class="storage-actions">
+   <div class="row">
+    <button type="button" class="ghost-danger" id="deleteSelectedZips" disabled>حذف الملفات المحددة</button>
+    <button type="button" class="danger" id="deleteAllZips" disabled>تفريغ جميع ملفات ZIP</button>
+   </div>
+   <small id="selectedZips">لم يتم تحديد ملفات</small>
+  </div>
+  <section class="storage-confirm" id="storageConfirmPanel" hidden>
+   <strong id="storageConfirmTitle">تأكيد حذف ملفات ZIP</strong>
+   <p class="storage-warning" id="storageConfirmMessage"></p>
+   <label for="storageConfirmText">اكتب العبارة المطلوبة للتأكيد:</label>
+   <input id="storageConfirmText" autocomplete="off" spellcheck="false" placeholder="اكتب عبارة التأكيد هنا">
+   <div class="row" style="margin-top:12px">
+    <button type="button" class="danger" id="storageConfirmDelete" disabled>تأكيد الحذف النهائي</button>
+    <button type="button" class="alt" id="storageCancelDelete">إلغاء</button>
+   </div>
+  </section>
+  <div id="storageStatus" class="muted-status" role="status" aria-live="polite"></div>
+  <div class="table-wrap">
+   <table class="storage-files"><thead><tr>
+    <th><input type="checkbox" id="selectAllZips" aria-label="تحديد كل الملفات في الصفحة"></th>
+    <th>اسم الملف</th><th>تاريخ الرفع</th><th>الحجم</th><th>العمر</th></tr>
+   </thead><tbody id="storageFilesBody"></tbody></table>
+  </div>
+  <div class="row between" style="margin-top:14px">
+   <button type="button" id="storagePrev" class="alt">السابق</button>
+   <span class="muted" id="storagePagination">صفحة 1</span>
+   <button type="button" id="storageNext" class="alt">التالي</button>
+  </div>
+  <p class="muted">إجمالي المساحة المستهلكة على مستوى المشروع وأرقام الفوترة الدقيقة تظهر في
+   <a href="https://supabase.com/dashboard/project/kopsyfhpcilafuesgjti/settings/usage" target="_blank" rel="noopener noreferrer">Supabase Usage</a>.
+   الأرقام هنا خاصة بملفات الطلبات التي أمكن جردها فقط.</p>
+ </section>
  <section class="panel" id="detailPanel" hidden>
   <div class="row between"><h2>تفاصيل الطلب</h2><button id="closeDetail" class="alt" type="button">إغلاق</button></div>
   <div class="detail-grid" id="detailContent"></div>
@@ -170,7 +249,7 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 </section>
 </main>
 <footer>TEKO STORE · لوحة إدارة خاصة · الأرقام الظاهرة من العميل عروض سعر مبدئية وليست مدفوعات مؤكدة</footer>
-<script src="owner-config.js?v=29"></script>
-<script src="owner.js?v=28"></script>
+<script src="owner-config.js?v=30"></script>
+<script src="owner.js?v=30"></script>
 </body>
 </html>

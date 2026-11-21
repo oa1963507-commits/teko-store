@@ -319,6 +319,8 @@ function updateStorageControls(){
  $("selectAllZips").checked=count>0&&checked===count;
  $("selectAllZips").indeterminate=checked>0&&checked<count;
  $("selectAllZips").disabled=storageState.busy||count===0;
+ $("storagePrev").disabled=storageState.busy||storageState.page<=0;
+ $("storageNext").disabled=storageState.busy||(storageState.page+1)*25>=storageState.count;
 }
 function renderStorage(data){
  storageState.count=Number(data.countedFiles)||0;
@@ -417,6 +419,7 @@ async function confirmStorageDelete(){
  $("storageConfirmDelete").disabled=true;
  $("storageCancelDelete").disabled=true;
  storageNotice("جاري حذف ملفات ZIP المحددة من Supabase...");
+ let finalNotice=null;
  try{
   const response=await call("storageDelete",{
    mode,paths,
@@ -426,11 +429,15 @@ async function confirmStorageDelete(){
   const result=response.deletion||{};
   resetStorageConfirm();
   storageState.page=0;storageState.selected.clear();
-  storageNotice("✅ تم تنفيذ الحذف. الملفات المتأثرة: "+Number(result.deleted||0)+
+  finalNotice="✅ تم تنفيذ الحذف. الملفات المتأثرة: "+Number(result.deleted||0)+
     (result.possiblyMore?" · ما زالت توجد ملفات أخرى؛ حدّث المساحة ثم كرر العملية إن لزم.":"")+
-    " · روابط تحميلها لم تعد صالحة.");
+    " · روابط تحميلها لم تعد صالحة.";
  }catch(error){storageNotice("فشل الحذف؛ لم نؤكد مسح الملفات: "+error.message);}
- finally{$("storageCancelDelete").disabled=false;storageState.busy=false;await loadStorage();}
+ finally{
+  $("storageCancelDelete").disabled=false;storageState.busy=false;
+  await loadStorage();
+  if(finalNotice)storageNotice(finalNotice);
+ }
 }
 function safeCSVCell(value){
  const input=String(value==null?"":value);

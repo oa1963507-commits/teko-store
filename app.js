@@ -814,7 +814,11 @@ const CLOUD_ACTIVE=(()=>{
  }catch{return false}
 })();
 let turnstileToken=null,turnstileWidget=null,cloudUploading=false;
-let activeCloudXHR=null,cloudCancelRequested=false;
+let activeCloudXHR=null,cloudCancelRequested=false,cloudDeadlineAt=0,cloudPreparedZip=null;
+function cloudRemainingMs(){return cloudDeadlineAt?Math.max(0,cloudDeadlineAt-Date.now()):55000}
+function requireCloudTime(reserveMs=0){
+ if(cloudRemainingMs()<reserveMs+1000)throw new Error('تجاوز تجهيز الطلب الوقت المستهدف (دقيقة واحدة). لم يتم إرسال رابط غير مكتمل.');
+}
 function assertCloudNotCancelled(){
  if(cloudCancelRequested)throw new Error('تم إلغاء الرفع. لم يتم إرسال الطلب على واتساب.');
 }
@@ -856,7 +860,7 @@ function setupOrderCloud(){
 }
 async function supabaseAction(action,body){
  const controller=new AbortController();
- const timer=setTimeout(()=>controller.abort(),35000);
+ const timer=setTimeout(()=>controller.abort(),Math.min(12000,Math.max(1000,cloudRemainingMs()-1500)));
  let response;
  try{
   response=await fetch(CLOUD_URL,{
@@ -882,7 +886,7 @@ function uploadZipWithProgress(url,zip){
   const request=new XMLHttpRequest();
   activeCloudXHR=request;
   let finished=false,lastActivity=Date.now();
-  const startTime=Date.now(),totalTimeoutMs=6*60*1000,stallTimeoutMs=55*1000;
+  const totalTimeoutMs=Math.max(1000,Math.min(55000,cloudRemainingMs()-6500)),stallTimeoutMs=18000;
   const watchdog=setInterval(()=>{
    if(finished)return;
    const idleMs=Date.now()-lastActivity;
@@ -934,13 +938,16 @@ function uploadZipWithProgress(url,zip){
  });
 }
 async function uploadZipForSupabase(code){
- const zip=await buildOrderPackage(code);
+ cloudPreparedZip=await buildOrderPackage(code,{fastCloud:true,onStage:cloudMessage});
  assertCloudNotCancelled();
+ requireCloudTime(10000);
+ const zip=cloudPreparedZip;
  const maxBytes=40*1024*1024;
  if(zip.size>maxBytes)throw new Error('ملف الطلب أكبر من 40 ميجابايت؛ قلّل الصور قبل الإرسال.');
  cloudMessage('جاري تجهيز رابط رفع آمن من Supabase...');
  const request=await supabaseAction('init',{size:zip.size,turnstileToken});
  assertCloudNotCancelled();
+ requireCloudTime(6500);
  const expectedOrigin=new URL(ORDER_CLOUD.supabaseOrigin).origin;
  const upload=new URL(request.uploadUrl||'');
  if(upload.protocol!=='https:'||upload.origin!==expectedOrigin||
@@ -953,11 +960,13 @@ async function uploadZipForSupabase(code){
  cloudMessage('جاري رفع ملف ZIP إلى التخزين الخاص (0%)...');
  await uploadZipWithProgress(upload.toString(),zip);
  assertCloudNotCancelled();
+ requireCloudTime(800);
  cloudMessage('تم رفع الملف، جاري إصدار رابط التحميل...');
  const result=await supabaseAction('finish',{
   path:request.path,size:zip.size,expires:request.expires,proof:request.proof
  });
  assertCloudNotCancelled();
+ requireCloudTime(0);
  const link=new URL(result.downloadUrl||'');
  if(link.protocol!=='https:'||link.origin!==expectedOrigin||
     !link.pathname.startsWith('/storage/v1/object/sign/teko-orders/orders/')||
@@ -1011,23 +1020,43 @@ $('whatsappBtn').addEventListener('click',async()=>{
   }catch{}
  }
  cloudUploading=true;cloudCancelRequested=false;
+ cloudDeadlineAt=Date.now()+55000;cloudPreparedZip=null;
+ const startedAt=Date.now();
  const button=$('whatsappBtn'),oldLabel=button.textContent;
  button.disabled=false;button.textContent='إلغاء رفع الطلب';
  try{
   const link=await uploadZipForOrder(code);
   recordOrder(code);
   const wa='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code,link));
-  cloudMessage('اتجهز رابط التحميل بنجاح وتم إدراجه في رسالة واتساب.');
+  cloudMessage('✓ تم الرفع وربط ملف الطلب بواتساب خلال '+Math.round((Date.now()-startedAt)/1000)+' ثانية.');
   if(tab&&!tab.closed)tab.location.replace(wa);
   else window.location.href=wa;
   notify('تم رفع ZIP وإنشاء رابط تحميل حقيقي للمالك داخل رسالة واتساب.');
  }catch(error){
-  if(tab&&!tab.closed)tab.close();
-  cloudMessage('لم يكتمل رفع الملف؛ لم تُرسل رسالة برابط غير صالح. '+(error.message||''));
-  notify('فشل رفع ملف الطلب: '+(error.message||'جرّب مرة أخرى'));
+  // On the production route only, honor the one-minute budget with an honest
+  // downloadable local ZIP fallback. In preview mode expose the cloud failure
+  // instead of claiming a successful private cloud upload.
+  if(ORDER_CLOUD.enabled===true&&!cloudCancelRequested&&cloudPreparedZip){
+   try{
+    saveBlob(cloudPreparedZip,'TEKO-ORDER-'+code+'.zip');
+    recordOrder(code);
+    const url='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code));
+    cloudMessage('تعذّر التخزين السحابي خلال دقيقة. تم تنزيل ZIP وفتح واتساب؛ أرفق الملف كمستند. السبب: '+(error.message||'اتصال بطيء'));
+    if(tab&&!tab.closed)tab.location.replace(url);
+    else window.location.href=url;
+    notify('طريقة بديلة: أرفق ملف ZIP الذي تم تنزيله في واتساب.');
+   }catch(fallbackError){
+    if(tab&&!tab.closed)tab.close();
+    cloudMessage('فشل الرفع والتجهيز البديل: '+(fallbackError.message||''));
+   }
+  }else{
+   if(tab&&!tab.closed)tab.close();
+   cloudMessage('لم يكتمل رفع الملف؛ لم تُرسل رسالة برابط غير صالح. '+(error.message||''));
+   notify('فشل رفع ملف الطلب: '+(error.message||'جرّب مرة أخرى'));
+  }
  }finally{
   refreshChallenge();
-  cloudUploading=false;cloudCancelRequested=false;
+  cloudUploading=false;cloudCancelRequested=false;cloudDeadlineAt=0;cloudPreparedZip=null;
   button.disabled=false;button.textContent=oldLabel;
  }
 });

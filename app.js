@@ -289,7 +289,7 @@ function renderEditTools(){
 }
 function price(){return Math.round(store.price*(1-store.discount/100))}
 function renderPrice(){$('unitPrice').textContent=price().toLocaleString('ar-EG')+' ج.م';$('originalPrice').textContent=store.discount>0?`بدلًا من ${store.price} جنيه · خصم ${store.discount}%`:'';$('adminPrice').value=store.price;$('adminDiscount').value=store.discount;renderSummary()}
-function renderSummary(){const qty=Math.max(1,parseInt($('quantity').value)||1),amount=qty*price();$('summary').innerHTML=`<div><span>المنتج</span><b>هودي Oversize</b></div><div><span>اللون</span><b>${color[0]}</b></div><div><span>مقاس الهودي</span><b>${size}</b></div><div><span>الكمية</span><b>${qty}</b></div><div><span>عناصر الطباعة</span><b>${designs.length}</b></div><hr style="border:0;border-top:1px solid #e5e5e8"><div><span>الإجمالي قبل الشحن</span><b style="color:#d8172a;font-size:16px">${amount.toLocaleString('ar-EG')} ج.م</b></div>`}
+function renderSummary(){const qty=Math.max(1,parseInt($('quantity').value)||1),amount=qty*price();$('summary').innerHTML=`<div><span>المنتج</span><b>هودي Oversize</b></div><div><span>اللون</span><b>${color[0]}</b></div><div><span>مقاس الهودي</span><b>${size}</b></div><div><span>الكمية</span><b>${qty}</b></div><div><span>عناصر الطباعة</span><b>${designs.length}</b></div><hr style="border:0;border-top:1px solid #e5e5e8"><div><span>الإجمالي قبل الشحن</span><b style="color:#d8172a;font-size:16px">${amount.toLocaleString('ar-EG')} ج.م</b></div>`;window.TEKO_CART?.updateCheckoutSummary?.()}
 function renderAll(){renderColors();renderSizes();renderDesigns();renderSummary();}
 function selectView(v){view=v;selectedId=null;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===view));drawBackground();prefetchSelectedColor(color[0],v);renderDesigns()}
 function clampPrintSize(d,w,h){
@@ -940,7 +940,7 @@ function uploadZipWithProgress(url,zip){
   }
  });
 }
-async function uploadZipForSupabase(code,testingZip=null){
+async function uploadZipForSupabase(code,testingZip=null,orderOverride=null){
  cloudPreparedZip=testingZip||await buildOrderPackage(code,{fastCloud:true,onStage:cloudMessage});
  assertCloudNotCancelled();
  requireCloudTime(10000);
@@ -971,7 +971,7 @@ async function uploadZipForSupabase(code,testingZip=null){
  // Central order registration stays off until the private database table
  // and updated Edge Function are both deployed and tested.
  if(ORDER_DB_REGISTRATION){
-  finishPayload.order=orderObject(code);
+  finishPayload.order=orderOverride||orderObject(code);
   if(ORDER_DB_TEST){
    finishPayload.order.test=true;
    finishPayload.order.customer.name='[اختبار] '+finishPayload.order.customer.name;
@@ -1008,6 +1008,10 @@ async function uploadZipForOrder(code){
  return link.toString();
 }
 $('whatsappBtn').addEventListener('click',async()=>{
+ if(window.TEKO_CART?.isCheckoutActive?.()){
+  await window.TEKO_CART.submit();
+  return;
+ }
  if(cloudUploading){
   cloudCancelRequested=true;
   cloudMessage('جاري إلغاء رفع ZIP...');

@@ -972,7 +972,10 @@ async function uploadZipForSupabase(code,testingZip=null){
  // and updated Edge Function are both deployed and tested.
  if(ORDER_DB_REGISTRATION){
   finishPayload.order=orderObject(code);
-  if(ORDER_DB_TEST)finishPayload.order.test=true;
+  if(ORDER_DB_TEST){
+   finishPayload.order.test=true;
+   finishPayload.order.customer.name='[اختبار] '+finishPayload.order.customer.name;
+  }
  }
  const result=await supabaseAction('finish',finishPayload);
  if(ORDER_DB_REGISTRATION&&result.registered!==true)
@@ -1055,7 +1058,7 @@ $('whatsappBtn').addEventListener('click',async()=>{
   // On the production route only, honor the one-minute budget with an honest
   // downloadable local ZIP fallback. In preview mode expose the cloud failure
   // instead of claiming a successful private cloud upload.
-  if(ORDER_CLOUD.enabled===true&&!cloudCancelRequested&&cloudPreparedZip){
+  if(ORDER_CLOUD.enabled===true&&!ORDER_DB_TEST&&!cloudCancelRequested&&cloudPreparedZip){
    try{
     saveBlob(cloudPreparedZip,'TEKO-ORDER-'+code+'.zip');
     recordOrder(code);

@@ -835,15 +835,24 @@ function setupOrderCloud(){
  document.head.appendChild(script);
 }
 async function supabaseAction(action,body){
- const response=await fetch(CLOUD_URL,{
-  method:'POST',
-  headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({action,...body}),
-  cache:'no-store'
- });
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),35000);
+ let response;
+ try{
+  response=await fetch(CLOUD_URL,{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({action,...body}),
+   cache:'no-store',
+   signal:controller.signal
+  });
+ }catch(error){
+  if(error.name==='AbortError')throw new Error('انتهت مهلة الاتصال بخدمة Supabase. لم يتم إرسال الطلب؛ حاول مرة أخرى.');
+  throw new Error('تعذر الاتصال بخدمة Supabase: راجع الإنترنت أو إعدادات الأمان.');
+ }finally{clearTimeout(timer)}
  let data;
  try{data=await response.json()}catch{throw new Error('خدمة التخزين أرجعت رد غير صالح.')}
- if(!response.ok)throw new Error(data.error||'تعذر التواصل مع تخزين Supabase');
+ if(!response.ok)throw new Error(data.error||'تعذر التواصل مع تخزين Supabase (HTTP '+response.status+')');
  return data;
 }
 // Explicit upload progress and bounded waiting instead of an indefinitely pending fetch.

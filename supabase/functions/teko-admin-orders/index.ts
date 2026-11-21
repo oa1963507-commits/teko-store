@@ -129,6 +129,98 @@ function summary(rows: ReportingRow[],total: number,partial: boolean,days: numbe
   };
 }
 
+// V30 private storage monitor. Bucket-level file bytes are NOT the same as
+// Supabase's project-wide averaged GB-hours billing/usage.
+const STORAGE_FREE_QUOTA_BYTES = 1000000000; // Free plan 1 GB; configurable guidance, not billing API
+const STORAGE_BATCH = 250;
+const STORAGE_SCAN_LIMIT = 5000;
+const STORAGE_PAGE_SIZE = 25;
+const STORAGE_BULK_DELETE_LIMIT = 500;
+const ZIP_NAME = /^[a-f0-9-]{36}\.zip$/;
+const ZIP_PATH = /^orders\/[a-f0-9-]{36}\.zip$/;
+type StorageZip = {path:string;name:string;sizeBytes:number|null;createdAt:string;ageDays:number|null};
+function zipName(value: unknown): value is string {
+  return typeof value==="string"&&ZIP_NAME.test(value);
+}
+async function storageInventory(admin: ReturnType<typeof adminClient>) {
+  const files:StorageZip[]=[];
+  let scanComplete=false,examined=0,unknownSizeCount=0;
+  for(let offset=0;offset<STORAGE_SCAN_LIMIT;offset+=STORAGE_BATCH){
+    const {data,error}=await admin.storage.from(BUCKET).list("orders",{
+      limit:STORAGE_BATCH,offset,sortBy:{column:"created_at",order:"asc"},
+    });
+    if(error)throw Error("Cannot inspect private storage");
+    const objects=data||[];
+    examined+=objects.length;
+    for(const item of objects){
+      if(!item.id||!zipName(item.name))continue;
+      const sizeRaw=Number(item.metadata?.size ?? (item as {size?:unknown}).size);
+      const sizeBytes=Number.isFinite(sizeRaw)&&sizeRaw>=0?sizeRaw:null;
+      if(sizeBytes===null)unknownSizeCount++;
+      const createdAt=String(item.created_at||"");
+      const time=Date.parse(createdAt);
+      files.push({
+        path:"orders/"+item.name,name:item.name,sizeBytes,createdAt,
+        ageDays:Number.isFinite(time)?Math.max(0,Math.floor((Date.now()-time)/86400000)):null,
+      });
+    }
+    if(objects.length<STORAGE_BATCH){scanComplete=true;break;}
+  }
+  return {files,scanComplete,examined,unknownSizeCount};
+}
+function storageStats(inventory: Awaited<ReturnType<typeof storageInventory>>,page:number){
+  const bytes=inventory.files.reduce((n,f)=>n+(f.sizeBytes||0),0);
+  const count=inventory.files.length;
+  const partial=!inventory.scanComplete||inventory.unknownSizeCount>0;
+  return {
+    bucket:BUCKET,usedBytes:bytes,quotaBytes:STORAGE_FREE_QUOTA_BYTES,
+    freeEstimateBytes:partial?null:Math.max(0,STORAGE_FREE_QUOTA_BYTES-bytes),
+    percentEstimate:partial?null:Math.round(bytes/STORAGE_FREE_QUOTA_BYTES*10000)/100,
+    countedFiles:count,unknownSizeCount:inventory.unknownSizeCount,
+    partial,limitNote:"This is the TEKO ZIP bucket only, not a Supabase billing or whole-project figure.",
+    page,pageSize:STORAGE_PAGE_SIZE,
+    files:inventory.files.slice(page*STORAGE_PAGE_SIZE,(page+1)*STORAGE_PAGE_SIZE),
+  };
+}
+async function deletePrivateZips(admin: ReturnType<typeof adminClient>,input:Record<string,unknown>){
+  if(input.acknowledgeLinksBreak!==true)throw Error("Explicit deletion acknowledgment missing");
+  const mode=String(input.mode||"");
+  if(mode==="selected"){
+    if(input.confirmation!=="DELETE_SELECTED_ZIPS"||!Array.isArray(input.paths)||
+       input.paths.length<1||input.paths.length>50)throw Error("Invalid selected deletion request");
+    const paths=[...new Set(input.paths)];
+    if(paths.length!==input.paths.length||paths.some(p=>typeof p!=="string"||!ZIP_PATH.test(p)))
+      throw Error("Only files under orders/*.zip can be removed");
+    const {error,data}=await admin.storage.from(BUCKET).remove(paths as string[]);
+    if(error)throw Error("Could not delete selected files");
+    const deleted=Array.isArray(data)?data.length:paths.length;
+    console.log("TEKO storage manual deletion",JSON.stringify({mode:"selected",requested:paths.length,deleted}));
+    return {mode,requested:paths.length,deleted,possiblyMore:false};
+  }
+  if(mode==="all"){
+    if(input.confirmation!=="DELETE_ALL_ZIPS")throw Error("Invalid bulk deletion confirmation");
+    let deleted=0,batches=0;
+    // Bounded execution avoids Edge Function timeouts. Repeat if more files remain.
+    while(deleted<STORAGE_BULK_DELETE_LIMIT&&batches<5){
+      const {data,error}=await admin.storage.from(BUCKET).list("orders",{
+        limit:100,offset:0,sortBy:{column:"created_at",order:"asc"},
+      });
+      if(error)throw Error("Cannot list storage for deletion");
+      const files=(data||[]).filter(file=>file.id&&zipName(file.name));
+      if(!files.length)break;
+      const paths=files.map(file=>"orders/"+file.name);
+      const {error:deleteError}=await admin.storage.from(BUCKET).remove(paths);
+      if(deleteError)throw Error("Could not delete ZIP files");
+      deleted+=paths.length;batches++;
+      if((data||[]).length<100)break;
+    }
+    const possiblyMore=deleted>=STORAGE_BULK_DELETE_LIMIT;
+    console.log("TEKO storage manual deletion",JSON.stringify({mode:"all",deleted,batches,possiblyMore}));
+    return {mode,deleted,possiblyMore};
+  }
+  throw Error("Unsupported deletion mode");
+}
+
 Deno.serve(async req=>{
   const origin=req.headers.get("Origin");
   if(req.method==="OPTIONS"&&origin===ORIGIN)return new Response(null,{status:204,headers:cors(origin)});
@@ -193,6 +285,23 @@ Deno.serve(async req=>{
         total:matched.length,page,pageSize:PAGE_SIZE,
         coveredOrders:data.rows.length,partial:data.partial
       });
+    }
+    if(action==="storage"){
+      const page=Number(input.page ?? 0);
+      if(!Number.isSafeInteger(page)||page<0||page>200)
+        return reply(origin,{error:"Invalid storage page"},400);
+      const inventory=await storageInventory(admin);
+      return reply(origin,{storage:storageStats(inventory,page)});
+    }
+    if(action==="storageDelete"){
+      try{
+        const deletion=await deletePrivateZips(admin,input as Record<string,unknown>);
+        return reply(origin,{ok:true,deletion});
+      }catch(error){
+        if(error instanceof Error&&/Invalid|Only files|Unsupported|acknowledgment/.test(error.message))
+          return reply(origin,{error:"Invalid or unconfirmed deletion request"},400);
+        throw error;
+      }
     }
     if(action==="detail"){
       const id=uuid(input.id);

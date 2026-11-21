@@ -6,5 +6,5 @@ window.TEKO_OWNER_CONFIG = {
   publicKey: 'sb_publishable_-Oea1-ooIBXP2pzTiZiXSw_nHjqjNKd', // public Supabase publishable key; no server-side privileges
   functionName: 'teko-admin-orders',
   reportsEnabled: true, // Owner-only KPIs and customer reporting.
-  storageEnabled: false // V30: enable only after updated owner Edge Function is deployed and verified.
+  storageEnabled: true // V31: owner-only storage usage monitor and confirmed manual ZIP deletion enabled.
 };

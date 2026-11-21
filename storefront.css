@@ -265,3 +265,31 @@ body{background:#08080b;color:#f7f4f7}
  .hero-product img.is-cutout{animation:none}
  .hero-product img{transition:none}
 }
+
+/* V35 — supplied 1122x1402 transparent PNG is now the exact hero image.
+   Keep its original fabric colors and transparency; only CSS lighting/shadows. */
+.hero-product img[src$="hero-hoodie-burgundy.png"]{
+ opacity:1;
+ mix-blend-mode:normal;
+ background:none;
+ border:0;
+ clip-path:none;
+ filter:
+  drop-shadow(-10px -3px 12px #ee254831)
+  drop-shadow(16px 6px 21px #5d0c207d)
+  drop-shadow(0 44px 34px #000e);
+}
+.hero-product img[src$="hero-hoodie-burgundy.png"].is-cutout{
+ opacity:1;
+}
+/* Prevent oversized shadows from clipping while retaining the card's glow. */
+@media(max-width:850px){
+ .hero-product img[src$="hero-hoodie-burgundy.png"]{
+  max-height:540px;
+ }
+}
+@media(max-width:520px){
+ .hero-product img[src$="hero-hoodie-burgundy.png"]{
+  max-height:465px;
+ }
+}

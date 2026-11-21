@@ -566,9 +566,63 @@ async function makePreview(targetView=view){
 function loadAsset(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),15000)}
 $('exportBtn').addEventListener('click',async()=>{try{const blob=await makePreview();saveBlob(blob,'TEKO-hoodie-'+view+'.png');notify('تم تجهيز معاينة PNG للتنزيل')}catch{notify('المعاينة غير جاهزة بعد')}});
-async function collectFiles(){let files=[];const views=[...new Set(designs.map(d=>d.view))];for(const v of (views.length?views:[view])){const blob=await makePreview(v);files.push(new File([blob],`TEKO-mockup-${v}.png`,{type:'image/png'}))}
- for(const d of designs){if(d.kind==='image'&&d.src){try{const blob=await(await fetch(d.src)).blob();files.push(new File([blob],d.sourceName||('artwork-'+d.id+'.png'),{type:blob.type||'image/png'}))}catch{}}}
- return files}
+// The artwork original is distinct from the rendered mockup: never flatten the source.
+const ART_EXT={'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp','image/gif':'.gif','image/svg+xml':'.svg','image/avif':'.avif'};
+function originalFilename(label,mime,index){
+ const type=(mime||'').split(';')[0].toLowerCase(),ext=ART_EXT[type]||'.png';
+ let name=cleanFilename(label||'design');
+ if(/\.(png|jpg|jpeg|webp|gif|svg|avif)$/i.test(name)){
+  const supplied=name.match(/\.[^.]+$/)[0].toLowerCase();
+  if(supplied!==ext&&!(type==='image/jpeg'&&supplied==='.jpeg'))name=name.replace(/\.[^.]+$/,ext);
+ }else name+=ext;
+ return String(index).padStart(2,'0')+'-'+name;
+}
+async function collectOriginalArtworks(){
+ const originals=[],seen=new Set();
+ for(let i=0;i<designs.length;i++){
+  const d=designs[i];
+  if(d.kind==='image'&&d.src){
+   if(seen.has(d.src))continue;
+   seen.add(d.src);
+   let response,blob;
+   try{response=await fetch(d.src);if(!response.ok)throw Error('فشل');blob=await response.blob()}
+   catch{throw new Error('تعذر قراءة الملف الأصلي '+(d.sourceName||'تصميم'))}
+   originals.push({name:originalFilename(d.sourceName,blob.type,i+1),blob});
+  }else if(d.kind==='text'){
+   // Custom text has no uploaded file; rasterize on a transparent PNG canvas.
+   if(document.fonts){try{await document.fonts.load((d.fontWeight||900)+' 28px "'+(d.font||'Impact')+'"')}catch{}}
+   const art=artFor(d);
+   if(!art)throw new Error('تعذر تجهيز الكتابة');
+   const blob=await new Promise((resolve,reject)=>art.toBlob(x=>x?resolve(x):reject(Error('فشل تصدير الكتابة')),'image/png'));
+   originals.push({name:String(i+1).padStart(2,'0')+'-text-transparent.png',blob});
+  }
+ }
+ return originals;
+}
+async function collectFiles(){
+ const files=[],views=[...new Set(designs.map(d=>d.view))];
+ for(const v of (views.length?views:[view])){
+  const blob=await makePreview(v);
+  files.push(new File([blob],'TEKO-mockup-'+v+'.png',{type:'image/png'}));
+ }
+ const originals=await collectOriginalArtworks();
+ for(const original of originals){
+  files.push(new File([original.blob],'ORIGINAL-'+original.name,{type:original.blob.type||'application/octet-stream'}));
+ }
+ return files;
+}
+$('downloadOriginalsBtn').addEventListener('click',async()=>{
+ if(!designs.length){notify('أضف تصميم أو كتابة أولًا');return}
+ const button=$('downloadOriginalsBtn'),label=button.textContent;button.disabled=true;button.textContent='جاري تجهيز الأصول...';
+ try{
+  const files=await collectOriginalArtworks();
+  if(files.length===1)saveBlob(files[0].blob,files[0].name);
+  else if(files.length>1)saveBlob(await window.TEKO_PACKAGE.bundle(files),'TEKO-ORIGINAL-ARTWORK.zip');
+  else{notify('لا توجد تصميمات أصلية');return}
+  notify('تم تنزيل التصميمات الأصلية بدون إضافة خلفية بيضاء');
+ }catch(e){notify('تعذر تجهيز التصميمات الأصلية: '+(e.message||'خطأ'))}
+ finally{button.disabled=false;button.textContent=label}
+});
 $('downloadBtn').addEventListener('click',async()=>{if(hasErrors()){notify('صحح مكان التصميم أولًا');return}try{const files=await collectFiles();files.forEach((f,i)=>setTimeout(()=>saveBlob(f,f.name),150*i));notify('الملفات جاهزة للتنزيل؛ اسمح بتنزيل الملفات المتعددة لو طلب المتصفح')}catch{notify('تعذر تجهيز الملفات')}});
 // V10: preview all four angles and package mockups, original art and a production sheet.
 const REVIEW_VIEWS=['front','back','left','right'];
@@ -619,6 +673,8 @@ function orderSheetText(code){
  }
  if(!data.designs.length)lines.push('بدون طباعة');
  lines.push('', 'تنبيه: مساحات الطباعة المعروضة تقريبية ويجب تأكيدها قبل الإنتاج.',
+  'الملفات الأصلية داخل artwork-original تحفظ شفافية PNG أو الخلفية الأصلية دون تعديل.',
+  'أرفق ZIP على واتساب كمستند Document وليس صورة من المعرض.',
   'هذه الحزمة تم تجهيزها محليًا ولم يتم إرسالها تلقائيًا إلى واتساب.');
  return '\ufeff'+lines.join('\r\n');
 }
@@ -629,20 +685,9 @@ async function buildOrderPackage(code){
   const mockup=await makePreview(v);
   pack.push({name:'mockups/TEKO-'+v+'.png',blob:mockup});
  }
- const originals=new Set();
- for(let i=0;i<designs.length;i++){
-  const d=designs[i];
-  if(d.kind!=='image'||!d.src||originals.has(d.src))continue;
-  originals.add(d.src);
-  try{
-   const response=await fetch(d.src);
-   if(!response.ok)throw Error('Artwork unavailable');
-   let name=cleanFilename(d.sourceName||'design');
-   if(!/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(name))name+='.png';
-   pack.push({name:'artwork/'+String(i+1).padStart(2,'0')+'-'+name,blob:await response.blob()});
-  }catch(error){
-   throw new Error('تعذر تجهيز التصميم الأصلي: '+(d.sourceName||'ملف غير معروف'));
-  }
+ const originals=await collectOriginalArtworks();
+ for(const original of originals){
+  pack.push({name:'artwork-original/'+original.name,blob:original.blob});
  }
  pack.push({name:'order/README-ar.txt',blob:new Blob([orderSheetText(code)],{type:'text/plain;charset=utf-8'})});
  pack.push({name:'order/details.json',blob:new Blob([JSON.stringify(orderObject(code),null,2)],{type:'application/json'})});
@@ -659,7 +704,7 @@ async function saveOrderPackage(){
   const code=orderCode();
   const zip=await buildOrderPackage(code);
   saveBlob(zip,'TEKO-ORDER-'+code+'.zip');
-  $('reviewStatus').textContent='تم تجهيز الملف. افتح واتساب وأرفق ZIP يدويًا حتى يصل للمتجر.';
+  $('reviewStatus').textContent='تم تجهيز الملف. أرسل ZIP على واتساب كمستند Document، وليس صورة، للحفاظ على شفافية PNG.';
   notify('تم تجهيز ملف الطلب '+code+' للتحميل');
  }catch(error){
   $('reviewStatus').textContent='تعذر تجهيز الملف: '+error.message;
@@ -717,7 +762,7 @@ async function openOrderReview(){
    caption.textContent=VIEW_NAMES[v]+' — المعاينة غير متاحة';
   }
  }
- if(token===reviewGeneration)$('reviewStatus').textContent='اتأكد من شكل الهودي ومقاسات الطباعة. ملف ZIP لا يُرسل تلقائيًا، أرفقه يدويًا على واتساب.';
+ if(token===reviewGeneration)$('reviewStatus').textContent='الموكابات تُظهر الهودي بخلفيته، بينما ملفات artwork-original تحفظ صور التصميمات كما رفعها العميل. أرسل ZIP كمستند.';
 }
 $('reviewOrderBtn').addEventListener('click',openOrderReview);
 $('reviewClose').addEventListener('click',closeReview);
@@ -725,7 +770,7 @@ reviewModal.addEventListener('click',e=>{if(e.target===reviewModal)closeReview()
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!reviewModal.hidden)closeReview()});
 $('reviewWhatsapp').addEventListener('click',()=>{$('whatsappBtn').click()});
 
-function orderMessage(code){const qty=Math.max(1,parseInt($('quantity').value)||1);return `🛍️ طلب جديد — TEKO STORE\nرقم الطلب: ${code}\nالعميل: ${$('customerName').value.trim()||'غير محدد'}\nهاتف: ${$('customerPhone').value.trim()||'غير محدد'}\nالمنتج: Oversize Hoodie\nاللون: ${color[0]}\nالمقاس: ${size}\nالكمية: ${qty}\nسعر القطعة: ${price()} جنيه${store.discount?' (خصم '+store.discount+'%)':''}\nالإجمالي قبل الشحن: ${qty*price()} جنيه\n\nتفاصيل الطباعة:\n${designs.map((d,i)=>`${i+1}. ${VIEW_NAMES[d.view]} — ${d.kind==='text'?'عبارة: '+d.text:'تصميم: '+d.sourceName} — عرض ${(+d.w).toFixed(1)} سم × ارتفاع ${(+d.h).toFixed(1)} سم — الموضع النسبي (${(d.x*100).toFixed(1)}%, ${(d.y*100).toFixed(1)}%)${d.kind==='text'?' — الخط '+d.font+' — اللون '+d.color:''}`).join('\n')||'بدون طباعة'}\n\nالعنوان: ${$('address').value.trim()||'لم يُحدد'}\nالملاحظات: ${$('notes').value.trim()||'لا يوجد'}\n\nملاحظة: معاينات الطلب وملفات التصميم تحتاج إرفاقًا أو رابط تخزين منفصل.`}
+function orderMessage(code){const qty=Math.max(1,parseInt($('quantity').value)||1);return `🛍️ طلب جديد — TEKO STORE\nرقم الطلب: ${code}\nالعميل: ${$('customerName').value.trim()||'غير محدد'}\nهاتف: ${$('customerPhone').value.trim()||'غير محدد'}\nالمنتج: Oversize Hoodie\nاللون: ${color[0]}\nالمقاس: ${size}\nالكمية: ${qty}\nسعر القطعة: ${price()} جنيه${store.discount?' (خصم '+store.discount+'%)':''}\nالإجمالي قبل الشحن: ${qty*price()} جنيه\n\nتفاصيل الطباعة:\n${designs.map((d,i)=>`${i+1}. ${VIEW_NAMES[d.view]} — ${d.kind==='text'?'عبارة: '+d.text:'تصميم: '+d.sourceName} — عرض ${(+d.w).toFixed(1)} سم × ارتفاع ${(+d.h).toFixed(1)} سم — الموضع النسبي (${(d.x*100).toFixed(1)}%, ${(d.y*100).toFixed(1)}%)${d.kind==='text'?' — الخط '+d.font+' — اللون '+d.color:''}`).join('\n')||'بدون طباعة'}\n\nالعنوان: ${$('address').value.trim()||'لم يُحدد'}\nالملاحظات: ${$('notes').value.trim()||'لا يوجد'}\n\nأرفق TEKO-ORDER ZIP على واتساب كمستند Document للحفاظ على شفافية ملفات PNG الأصلية، وليس كصورة من المعرض.`}
 function validateOrder(){if(hasErrors()){notify('ممنوع تأكيد طلب داخل منطقة الطباعة المحظورة');return false}if(!$('customerName').value.trim()){notify('اكتب اسم العميل أولًا');$('customerName').focus();return false}if(!/^01\d{9}$/.test($('customerPhone').value.trim())){notify('اكتب رقم موبايل مصري صحيح (11 رقم)');$('customerPhone').focus();return false}return true}
 function recordOrder(code){
  const item={code,date:new Date().toISOString(),name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),qty:Math.max(1,+$('quantity').value||1),color:color[0],size,total:price()*Math.max(1,+$('quantity').value||1),views:[...new Set(designs.map(d=>d.view))]};
@@ -734,7 +779,28 @@ function recordOrder(code){
  persist();renderOrders();
 }
 $('whatsappBtn').addEventListener('click',()=>{if(!validateOrder())return;const code=orderCode();recordOrder(code);const msg=orderMessage(code);window.open('https://wa.me/201557229102?text='+encodeURIComponent(msg),'_blank','noopener');notify('تم فتح رسالة واتساب. الصور تحتاج إرفاقها يدويًا أو ربط تخزين سحابي.');});
-$('shareBtn').addEventListener('click',async()=>{if(!validateOrder())return;const code=orderCode();try{const files=await collectFiles();if(navigator.canShare?.({files})){await navigator.share({files,title:'TEKO STORE '+code,text:orderMessage(code)});recordOrder(code);notify('تم فتح مشاركة الملفات؛ اختار واتساب وحدد رقم المتجر')}else{notify('المتصفح لا يدعم مشاركة ملفات؛ استخدم تنزيل الملفات وفتح واتساب')}}catch(e){if(e.name!=='AbortError')notify('تعذر مشاركة الملفات على هذا الجهاز')}});
+$('shareBtn').addEventListener('click',async()=>{
+ if(!validateOrder()||packageBusy)return;
+ const code=orderCode();
+ packageBusy=true;
+ const button=$('shareBtn'),label=button.textContent;
+ button.disabled=true;button.textContent='جاري تجهيز الملف الأصلي...';
+ try{
+  // Sharing a PNG as PHOTO can cause WhatsApp to flatten its alpha channel.
+  // Share an untouched ZIP document instead so transparency cannot be lost.
+  const zip=await buildOrderPackage(code);
+  const file=new File([zip],'TEKO-ORDER-'+code+'.zip',{type:'application/zip'});
+  if(navigator.canShare?.({files:[file]})&&navigator.share){
+   await navigator.share({files:[file],title:'TEKO STORE '+code,text:'ملف الطلب '+code+' — أرسله كمستند Document'});
+   recordOrder(code);
+   notify('أرسل ZIP كمستند على واتساب؛ خلفيات الصور الأصلية وشفافية PNG محفوظة.');
+  }else{
+   saveBlob(zip,file.name);
+   notify('تم تنزيل ZIP؛ أرفقه على واتساب كمستند Document للحفاظ على شفافية PNG.');
+  }
+ }catch(e){if(e.name!=='AbortError')notify('تعذر مشاركة الملف: '+(e.message||'أعد المحاولة'))}
+ finally{button.disabled=false;button.textContent=label;packageBusy=false}
+});
 function renderOrders(){$('orders').innerHTML=store.orders.length?store.orders.map(o=>`<div class="order"><b>${escapeHTML(o.code)}</b> · ${escapeHTML(o.name)} · ${o.total} ج.م<br>${escapeHTML(o.color)} · ${escapeHTML(o.size)} · ${o.qty} قطعة · محفوظ محليًا</div>`).join(''):'لا توجد طلبات محلية حتى الآن.'}
 $('adminToggle').addEventListener('click',()=>{$('admin').classList.toggle('show');if($('admin').classList.contains('show'))$('admin').scrollIntoView({behavior:'smooth'})});
 $('savePrice').addEventListener('click',()=>{store.price=Math.max(0,Number($('adminPrice').value)||650);store.discount=Math.max(0,Math.min(95,Number($('adminDiscount').value)||0));persist();renderPrice();notify('تم تحديث السعر محليًا في هذه التجربة')});

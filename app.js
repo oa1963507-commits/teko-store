@@ -256,7 +256,7 @@ function renderDesigns(){
 }
 function renderZones(){
  const container=$('zones');container.innerHTML='';container.style.pointerEvents='none';
- const currentErrors=designs.filter(d=>d.view===view).flatMap(d=>violations(d));
+ const currentErrors=showTools?designs.filter(d=>d.view===view).flatMap(d=>violations(d)):[];
  const unique=new Set();
  for(const zone of currentErrors){
   const key=[zone.x,zone.y,zone.w,zone.h].map(v=>v.toFixed(3)).join('/');
@@ -313,10 +313,21 @@ $('designWidth').addEventListener('change',e=>applyMeasure('w',e.target.value));
 $('lockRatio').addEventListener('click',()=>{const d=current();if(!d)return;d.keepRatio=d.keepRatio===false;d.ratio=d.w/d.h;$('lockRatio').textContent=d.keepRatio?'🔒 تناسب الأبعاد':'🔓 تعديل حر';notify(d.keepRatio?'تم قفل تناسب الأبعاد':'تم فتح تناسب الأبعاد')});
 $('removeSelected').addEventListener('click',()=>{if(!current())return;snapshot();designs=designs.filter(d=>d.id!==selectedId);selectedId=null;renderAll()});
 $('undoBtn').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(designs));designs=JSON.parse(history.pop());selectedId=null;renderAll()});$('redoBtn').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(designs));designs=JSON.parse(future.pop());selectedId=null;renderAll()});
-$('previewBtn').addEventListener('click',()=>{showTools=!showTools;renderDesigns()});$('quantity').addEventListener('input',renderSummary);
+function toggleCleanPreview(){
+ showTools=!showTools;
+ selectedId=null;
+ $('previewBtn').textContent=showTools?'معاينة نهائية بدون إطار':'إظهار أدوات التحديد';
+ const quick=$('cleanPreviewBtn');
+ if(quick)quick.textContent=showTools?'معاينة بدون إطار':'العودة للتعديل';
+ renderDesigns();
+}
+$('previewBtn').addEventListener('click',toggleCleanPreview);
+if($('cleanPreviewBtn'))$('cleanPreviewBtn').addEventListener('click',toggleCleanPreview);
+$('quantity').addEventListener('input',renderSummary);
 // Drag to position; resize from the lower-right corner. Both stay in real-centimeter units.
 layer.addEventListener('pointerdown',e=>{
- const el=e.target.closest('.design');if(!el||!showTools)return;
+ const el=e.target.closest('.design');if(!showTools)return;
+ if(!el){if(selectedId){selectedId=null;renderDesigns();}return;}
  const d=designs.find(x=>x.id===el.dataset.id);if(!d)return;
  e.preventDefault();
  const mode=e.target.classList.contains('resize')?'resize':'move';

@@ -1,10 +1,10 @@
 // TEKO STORE public client configuration — no secrets here.
 // Supabase backend uses TURNSTILE_SECRET and TEKO_HMAC_SECRET on server only.
-// Safe staging: until the public Turnstile Site Key is set, orders use local ZIP fallback.
+// Safe staging: keep cloud checkout disabled until a verified Supabase upload and download test succeeds.
 window.TEKO_CLOUD = {
   provider: 'supabase',
   enabled: false, // Keep regular customer checkout on the existing fallback until end-to-end tests pass.
   functionUrl: 'https://kopsyfhpcilafuesgjti.supabase.co/functions/v1/teko-order-link',
   supabaseOrigin: 'https://kopsyfhpcilafuesgjti.supabase.co',
-  turnstileSiteKey: '' // Paste the Cloudflare Turnstile PUBLIC site key after the backend is ready.
+  turnstileSiteKey: '0x4AAAAAAGMGhn1Jl1VMH-xq' // Cloudflare Turnstile PUBLIC site key, safe to expose.
 };

@@ -255,7 +255,7 @@ function renderDesigns(){
   remove.setAttribute('aria-label','حذف '+(d.sourceName||d.text||'التصميم'));
   el.appendChild(remove);layer.appendChild(el);
  });
- renderZones();renderEditTools();scheduleInk();
+ renderZones();renderEditTools();renderQuickDock();scheduleInk();
 }
 function renderZones(){
  const container=$('zones');container.innerHTML='';container.style.pointerEvents='none';
@@ -413,12 +413,103 @@ function toggleCleanPreview(){
 $('previewBtn').addEventListener('click',toggleCleanPreview);
 if($('cleanPreviewBtn'))$('cleanPreviewBtn').addEventListener('click',toggleCleanPreview);
 $('quantity').addEventListener('input',renderSummary);
+// V9: compact three-dot menu follows the selected object without replacing the full side controls.
+let quickMenuOpen=false,quickMenuSelected=null;
+function positionQuickDock(){
+ const d=current(),dock=$('quickDesignDock'),menu=$('quickDesignMenu');
+ if(!d||dock.hidden)return;
+ const w=layer.clientWidth,h=layer.clientHeight;
+ if(!w||!h)return;
+ const box=getBounds(d);
+ const x=Math.max(22,Math.min(w-22,(box.x+box.w/2)*w));
+ const end=(box.y+box.h)*h+9;
+ const y=end<=h-43?end:Math.max(8,box.y*h-44);
+ dock.style.left=x+'px';dock.style.top=y+'px';
+ if(quickMenuOpen&&!menu.hidden){
+  const width=Math.min(236,Math.max(135,w-16));
+  menu.style.width=width+'px';
+  const globalX=Math.max(8,Math.min(w-width-8,x-width/2));
+  menu.style.left=(globalX-x)+'px';
+  const height=menu.getBoundingClientRect().height;
+  menu.style.top=(h-y>=height+46?44:-(height+8))+'px';
+ }
+}
+function renderQuickDock(){
+ const d=current(),dock=$('quickDesignDock'),menu=$('quickDesignMenu'),toggle=$('quickDesignToggle');
+ if(!d||d.view!==view||!showTools){
+  quickMenuOpen=false;quickMenuSelected=null;dock.hidden=true;menu.hidden=true;return;
+ }
+ if(quickMenuSelected!==d.id){quickMenuSelected=d.id;quickMenuOpen=false;}
+ dock.hidden=false;toggle.setAttribute('aria-expanded',String(quickMenuOpen));
+ menu.hidden=!quickMenuOpen;
+ if(quickMenuOpen){
+  menu.innerHTML='<div class="quick-design-heading">إعدادات التصميم</div>'+
+   '<div class="quick-design-actions">'+
+   '<button class="quick-action" type="button" data-quick="duplicate">⧉ تكرار</button>'+
+   '<button class="quick-action" type="button" data-quick="ratio">'+(d.keepRatio===false?'🔓 قفل التناسب':'🔒 فتح التناسب')+'</button>'+
+   '<button class="quick-action" type="button" data-quick="front">↑ للأمام</button>'+
+   '<button class="quick-action" type="button" data-quick="back">↓ للخلف</button>'+
+   '</div>'+
+   '<div class="quick-dimensions">'+
+   '<label>العرض (سم)<input aria-label="عرض التصميم بالسنتيمتر" data-quick-dim="w" type="number" step="0.5" min="2" max="40" value="'+d.w.toFixed(1)+'"></label>'+
+   '<label>الارتفاع (سم)<input aria-label="ارتفاع التصميم بالسنتيمتر" data-quick-dim="h" type="number" step="0.5" min="2" max="45" value="'+d.h.toFixed(1)+'"></label>'+
+   '</div>'+
+   (d.kind==='text'?'<div class="quick-design-sep"></div><button class="quick-action" type="button" data-quick="text" style="width:100%">✎ تعديل العبارة والخط</button>':'')+
+   '<div class="quick-design-sep"></div>'+
+   '<div class="quick-design-actions">'+
+   '<button class="quick-action quick-danger" type="button" data-quick="delete">× حذف العنصر</button>'+
+   '<button class="quick-action quick-danger" type="button" data-quick="clear">مسح كل التصميمات</button>'+
+   '</div>';
+ }else menu.innerHTML='';
+ positionQuickDock();
+}
+function closeQuickMenu(){
+ if(!quickMenuOpen)return;
+ quickMenuOpen=false;
+ renderQuickDock();
+}
+$('quickDesignToggle').addEventListener('click',e=>{
+ e.preventDefault();e.stopPropagation();
+ quickMenuOpen=!quickMenuOpen;renderQuickDock();
+});
+$('quickDesignMenu').addEventListener('click',e=>{
+ const btn=e.target.closest('[data-quick]');if(!btn)return;
+ e.preventDefault();e.stopPropagation();
+ const action=btn.dataset.quick;
+ const d=current();if(!d)return;
+ if(action==='text'){
+  closeQuickMenu();
+  $('selectedTextTools').scrollIntoView({behavior:'smooth',block:'center'});
+  $('selectedTextContent').focus({preventScroll:true});
+  return;
+ }
+ closeQuickMenu();
+ const mapped={duplicate:'duplicateSelected',ratio:'lockRatio',front:'bringFront',back:'sendBack',delete:'removeSelected',clear:'clearDesigns'};
+ if(mapped[action])$(mapped[action]).click();
+ renderQuickDock();
+});
+$('quickDesignMenu').addEventListener('change',e=>{
+ const input=e.target.closest('[data-quick-dim]');if(!input)return;
+ const axis=input.dataset.quickDim;
+ if(axis!=='w'&&axis!=='h')return;
+ const number=Number(input.value);
+ if(!Number.isFinite(number)||number<2){renderQuickDock();return;}
+ applyMeasure(axis,number);
+});
+document.addEventListener('pointerdown',e=>{
+ if(quickMenuOpen&&!e.target.closest('#quickDesignDock'))closeQuickMenu();
+});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&quickMenuOpen){closeQuickMenu();$('quickDesignToggle').focus();}
+});
+window.addEventListener('resize',positionQuickDock);
 // Drag to position; resize from the lower-right corner. Both stay in real-centimeter units.
 layer.addEventListener('pointerdown',e=>{
  if(e.target.closest('.delete-design'))return;
  const el=e.target.closest('.design');if(!showTools)return;
  if(!el){if(selectedId){selectedId=null;renderDesigns();}return;}
  const d=designs.find(x=>x.id===el.dataset.id);if(!d)return;
+ closeQuickMenu();
  e.preventDefault();
  const mode=e.target.classList.contains('resize')?'resize':'move';
  if(selectedId!==d.id){selectedId=d.id;renderDesigns()}
@@ -452,7 +543,7 @@ window.addEventListener('pointermove',e=>{
   el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
   scheduleInk();
  }
- renderZones();renderEditTools();renderSummary();
+ renderZones();renderEditTools();renderSummary();positionQuickDock();
 });
 function finishPointer(){if(dragging){dragging=null;renderDesigns()}}
 window.addEventListener('pointerup',finishPointer);

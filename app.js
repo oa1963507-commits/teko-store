@@ -262,7 +262,7 @@ function renderZones(){
   validation.className='notice';
   validation.textContent='اختار أي زاوية واسحب التصميم على القماش، بما في ذلك الأكمام. الجيب والخياطة والأطراف ممنوع الطباعة عليها؛ وقت التعارض يظهر خط أحمر.';
  }
- $('whatsappBtn').disabled=$('shareBtn').disabled=$('downloadBtn').disabled=Boolean(invalidDesign);
+ $('whatsappBtn').disabled=$('downloadBtn').disabled=Boolean(invalidDesign);
 }
 function renderEditTools(){
  const d=current(),selected=!!d,textSelected=!!d&&d.kind==='text';
@@ -889,104 +889,40 @@ $('whatsappBtn').addEventListener('click',async()=>{
  }
 });
 setupOrderCloud();
-// V14 no-cloud order handoff. The customer uploads nothing to GitHub or R2.
-let preparedOfflineOrder=null;
-function legacyCopy(text){
- const input=document.createElement('textarea');
- input.value=text;input.readOnly=true;
- input.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';
- document.body.appendChild(input);input.focus();input.select();
- let done=false;
- try{done=!!document.execCommand('copy')}catch{}
- input.remove();return done;
-}
-function copyOrderText(message){
- if(navigator.clipboard&&window.isSecureContext)
-  return navigator.clipboard.writeText(message).then(()=>true).catch(()=>legacyCopy(message));
- return Promise.resolve(legacyCopy(message));
-}
-function preparedIsValid(){
- if(!preparedOfflineOrder){notify('جهّز ملف الطلب الأول');return false}
- if(orderMessage(preparedOfflineOrder.code)!==preparedOfflineOrder.message){
-  preparedOfflineOrder=null;$('offlineCheckout').hidden=true;
-  notify('تفاصيل الطلب اتغيرت. اضغط تجهيز الطلب من جديد.');return false;
- }
- return true;
-}
-function showOfflineStatus(text){$('offlineCheckoutStatus').textContent=text}
+// V15: one checkout button, without additional sharing controls.
+// WhatsApp links cannot attach local files directly: ZIP downloads, then the owner message opens.
 async function prepareTemporaryCheckout(code=orderCode()){
  if(!validateOrder()||packageBusy||cloudUploading)return;
  packageBusy=true;
- const message=orderMessage(code);
- // Clipboard call begins during the user click (before any awaited rendering).
- const copyPromise=copyOrderText(message);
- const buttons=[$('whatsappBtn'),$('shareBtn')],labels=buttons.map(b=>b.textContent);
- buttons.forEach(b=>{b.disabled=true;b.textContent='جاري تجهيز ZIP...'});
- $('offlineCheckout').hidden=false;
- preparedOfflineOrder=null;
- showOfflineStatus('جاري تجهيز صور الموكاب وملفات التصميمات الأصلية...');
+ const button=$('whatsappBtn'),label=button.textContent;
+ button.disabled=true;button.textContent='جاري تجهيز الطلب...';
+ // Open during the click, before asynchronous ZIP work, to avoid popup blockers.
+ let tab=null;
  try{
-  const zip=await buildOrderPackage(code);
-  const file=new File([zip],'TEKO-ORDER-'+code+'.zip',{type:'application/zip'});
-  preparedOfflineOrder={code,file,message};
-  const copied=await copyPromise;
-  const shareSupported=!!(navigator.share&&navigator.canShare?.({files:[file]}));
-  $('offlineShareFile').disabled=!shareSupported;
-  $('offlineShareFile').textContent=shareSupported?'مشاركة ZIP والتفاصيل':'مشاركة غير مدعومة';
-  if(shareSupported){
-   showOfflineStatus('ملف '+file.name+' جاهز. '+(copied?'تم نسخ تفاصيل الطلب. ':'')+'اضغط «مشاركة ZIP والتفاصيل» واختار واتساب والمتجر.');
-  }else{
-   saveBlob(file,file.name);
-   showOfflineStatus('تم تنزيل '+file.name+'. '+(copied?'تم نسخ تفاصيل الطلب. ':'')+'افتح واتساب برسالة جاهزة وأرفق ZIP كمستند.');
+  tab=window.open('about:blank','_blank');
+  if(tab){
+   tab.opener=null;
+   tab.document.title='TEKO STORE — تجهيز الطلب';
+   tab.document.body.innerHTML='<p dir="rtl" style="font:16px Tahoma,Arial,sans-serif;text-align:center;margin:12vh auto;max-width:460px;padding:20px">جاري تجهيز ملفات طلبك... سيتم فتح رسالة واتساب بعد تنزيل ZIP.</p>';
   }
-  notify(copied?'تم تجهيز ZIP ونسخ تفاصيل الطلب':'تم تجهيز ZIP؛ استخدم زر نسخ تفاصيل الطلب');
-  $('offlineCheckout').scrollIntoView({behavior:'smooth',block:'nearest'});
+ }catch(error){tab=null}
+ try{
+  const message=orderMessage(code);
+  const zip=await buildOrderPackage(code);
+  const filename='TEKO-ORDER-'+code+'.zip';
+  saveBlob(zip,filename);
+  recordOrder(code);
+  const whatsappUrl='https://wa.me/201557229102?text='+encodeURIComponent(message);
+  if(tab&&!tab.closed)tab.location.replace(whatsappUrl);
+  else window.location.href=whatsappUrl;
+  notify('تم تنزيل ZIP وفتح واتساب بالتفاصيل. أرفق الملف كمستند واضغط إرسال.');
  }catch(error){
-  preparedOfflineOrder=null;$('offlineCheckout').hidden=true;
-  notify('تعذر تجهيز الطلب: '+(error.message||'خطأ'));
+  if(tab&&!tab.closed)tab.close();
+  notify('تعذر تجهيز ZIP: '+(error.message||'أعد المحاولة'));
  }finally{
-  buttons.forEach((b,i)=>{b.disabled=false;b.textContent=labels[i]});
-  packageBusy=false;
+  button.disabled=false;button.textContent=label;packageBusy=false;
  }
 }
-$('shareBtn').addEventListener('click',()=>prepareTemporaryCheckout(orderCode()));
-$('offlineShareFile').addEventListener('click',async()=>{
- if(!preparedIsValid())return;
- const {code,file,message}=preparedOfflineOrder;
- if(!(navigator.share&&navigator.canShare?.({files:[file]}))){
-  showOfflineStatus('المشاركة غير مدعومة: نزّل ZIP ثم افتح واتساب برسالة جاهزة.');return;
- }
- // Call share synchronously during this click to retain browser user activation.
- const copyPromise=copyOrderText(message);
- let sharePromise;
- try{sharePromise=navigator.share({files:[file],title:'TEKO STORE '+code,text:message})}
- catch(error){showOfflineStatus('تعذر فتح المشاركة. استخدم تنزيل ZIP وفتح واتساب.');return}
- try{
-  await sharePromise;recordOrder(code);
-  const copied=await copyPromise;
-  showOfflineStatus('تم تمرير الملف للتطبيق المختار. '+(copied?'لو التفاصيل ما ظهرتش، الصق الرسالة المنسوخة.':'لو التفاصيل ما ظهرتش اضغط نسخ التفاصيل.')+' تأكد من الضغط على إرسال داخل واتساب.');
- }catch(error){
-  showOfflineStatus(error.name==='AbortError'?'تم إلغاء المشاركة؛ الملف ما زال جاهزًا.':'تعذر مشاركة ZIP. جرّب تنزيله وفتحه من واتساب.');
- }
-});
-$('offlineCopyText').addEventListener('click',async()=>{
- if(!preparedIsValid())return;
- const success=await copyOrderText(preparedOfflineOrder.message);
- showOfflineStatus(success?'تم نسخ التفاصيل. الصقها في تعليق ملف ZIP أو محادثة المتجر.':'المتصفح منع النسخ. افتح واتساب برسالة جاهزة.');
- notify(success?'تم نسخ تفاصيل الطلب':'تعذر النسخ على هذا المتصفح');
-});
-$('offlineDownloadZip').addEventListener('click',()=>{
- if(!preparedIsValid())return;
- saveBlob(preparedOfflineOrder.file,preparedOfflineOrder.file.name);
- showOfflineStatus('تم تنزيل ZIP. أرفقه كمستند Document في واتساب وليس كصورة.');
-});
-$('offlineOpenWhatsapp').addEventListener('click',()=>{
- if(!preparedIsValid())return;
- const {code,message}=preparedOfflineOrder;
- recordOrder(code);
- window.open('https://wa.me/201557229102?text='+encodeURIComponent(message),'_blank','noopener');
- showOfflineStatus('رسالة الطلب جاهزة على واتساب. أرفق ZIP كمستند يدويًا واضغط إرسال.');
-});
 function renderOrders(){$('orders').innerHTML=store.orders.length?store.orders.map(o=>`<div class="order"><b>${escapeHTML(o.code)}</b> · ${escapeHTML(o.name)} · ${o.total} ج.م<br>${escapeHTML(o.color)} · ${escapeHTML(o.size)} · ${o.qty} قطعة · محفوظ محليًا</div>`).join(''):'لا توجد طلبات محلية حتى الآن.'}
 $('adminToggle').addEventListener('click',()=>{$('admin').classList.toggle('show');if($('admin').classList.contains('show'))$('admin').scrollIntoView({behavior:'smooth'})});
 $('savePrice').addEventListener('click',()=>{store.price=Math.max(0,Number($('adminPrice').value)||650);store.discount=Math.max(0,Math.min(95,Number($('adminDiscount').value)||0));persist();renderPrice();notify('تم تحديث السعر محليًا في هذه التجربة')});

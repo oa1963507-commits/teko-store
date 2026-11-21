@@ -5,5 +5,5 @@ window.TEKO_OWNER_CONFIG = {
   projectUrl: 'https://kopsyfhpcilafuesgjti.supabase.co',
   publicKey: 'sb_publishable_-Oea1-ooIBXP2pzTiZiXSw_nHjqjNKd', // public Supabase publishable key; no server-side privileges
   functionName: 'teko-admin-orders',
-  reportsEnabled: false // Switch on only after the V28 owner Edge Function is deployed and tested.
+  reportsEnabled: true // V29: owner-only KPI reports and customer insights enabled after Edge Function deployment.
 };

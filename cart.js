@@ -257,6 +257,7 @@ function updateCheckoutSummary(){
   '<div><span>التخصيصات</span><b>'+items.length+'</b></div>'+
   '<div><span>عدد القطع</span><b>'+count()+'</b></div>'+
   '<div><span>الإجمالي قبل الشحن</span><b style="color:#f84a61;font-size:18px">'+money(amount())+'</b></div>';
+ $("checkoutPriceLabel").textContent="إجمالي السلة";
  $("unitPrice").textContent=money(amount());
  $("originalPrice").textContent="إجمالي السلة — ليس دفعًا مؤكدًا";
 }
@@ -265,6 +266,7 @@ function setCartMode(state){
  $("cartCheckoutBanner").hidden=!state;
  $("singleQuantityRow").hidden=state;
  $("whatsappBtn").textContent=state?"تجهيز طلب السلة وإرساله على واتساب":"تجهيز الطلب ومشاركته على واتساب";
+ $("checkoutPriceLabel").textContent=state?"إجمالي السلة":"سعر القطعة";
  if(state)updateCheckoutSummary();else renderPrice();
  document.body.classList.toggle("cart-checkout-active",state);
 }

@@ -99,8 +99,27 @@
 </style>
 <link rel="stylesheet" href="storefront.css?v=35">
 <link rel="stylesheet" href="mobile.css?v=39">
+<link rel="stylesheet" href="intro.css?v=40">
 </head>
-<body>
+<body class="teko-intro-active">
+<div class="teko-intro" id="tekoIntro" role="dialog" aria-modal="true" aria-label="مقدمة TEKO STORE" tabindex="-1">
+ <div class="teko-intro__grid" aria-hidden="true"></div>
+ <div class="teko-intro__orb" aria-hidden="true"></div>
+ <div class="teko-intro__inner">
+  <p class="teko-intro__overline">TEKO / PREMIUM STREETWEAR</p>
+  <div class="teko-intro__logo-wrap">
+   <img class="teko-intro__logo" src="icons/icon-512.png" alt="TEKO STORE" width="512" height="512" fetchpriority="high" decoding="async">
+   <div class="teko-intro__sweep" aria-hidden="true"></div>
+  </div>
+  <p class="teko-intro__tagline">YOUR DESIGN. <span>YOUR RULES.</span></p>
+  <p class="teko-intro__subline">صمّم هوديك بطريقتك</p>
+ </div>
+ <div class="teko-intro__bottom" aria-hidden="true">
+  <div class="teko-intro__loader"></div>
+  <small>TEKO STORE · EST. FOR YOU</small>
+ </div>
+</div>
+<script src="intro.js?v=40"></script>
 <header class="site-header">
  <a class="site-logo" href="#home" aria-label="TEKO STORE — الرئيسية">TEKO <b>STORE</b><small>PREMIUM STREETWEAR</small></a>
  <nav class="site-nav" id="siteNav" aria-label="القائمة الرئيسية">

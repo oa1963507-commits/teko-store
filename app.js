@@ -545,7 +545,7 @@ async function makePreview(targetView=view){
  return new Promise((resolve,reject)=>exportCanvas.toBlob(blob=>blob?resolve(blob):reject(Error('Export failed')),'image/png'));
 }
 function loadAsset(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
-function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),15000)}
+function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();const url=a.href;setTimeout(()=>URL.revokeObjectURL(url),60000)}
 $('exportBtn').addEventListener('click',async()=>{try{const blob=await makePreview();saveBlob(blob,'TEKO-hoodie-'+view+'.png');notify('تم تجهيز معاينة PNG للتنزيل')}catch{notify('المعاينة غير جاهزة بعد')}});
 // The artwork original is distinct from the rendered mockup: never flatten the source.
 const ART_EXT={'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp','image/gif':'.gif','image/svg+xml':'.svg','image/avif':'.avif'};

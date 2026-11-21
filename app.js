@@ -35,6 +35,7 @@ const $=id=>document.getElementById(id);
 let store;try{store={...DEFAULT,...JSON.parse(localStorage.getItem('teko-store-demo')||'{}')}}catch{store={...DEFAULT}};
 let view='front',color=COLORS[2],size='M',designs=[],selectedId=null,history=[],future=[],showTools=true,photoCache={},lastFile=null,dragging=null,toastTimer=null;
 const canvas=$('hoodCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true}),layer=$('designLayer');
+const printCanvas=$('printCanvas'),printCtx=printCanvas.getContext('2d');
 function persist(){try{localStorage.setItem('teko-store-demo',JSON.stringify(store))}catch{notify('ذاكرة المتصفح امتلأت. المعرض الكبير يحتاج تخزين سحابي.')}}
 function notify(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',3500)}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
@@ -138,7 +139,7 @@ function drawBackground(){
  const image=chosen||photoCache[view];if(!image)return;
  ctx.clearRect(0,0,1122,1402);
  ctx.drawImage(image,0,0,1122,1402);
- if(chosen||color[0]==='زيتي')return; // Draw supplied photography untouched.
+ if(chosen||color[0]==='زيتي'){scheduleInk();return;} // Draw supplied photography untouched.
  // Keep legacy preview only for colors whose files are not uploaded yet.
  const recipe=FABRIC_GRADES[color[0]];
  if(!recipe)return;
@@ -168,8 +169,55 @@ function drawBackground(){
    }
  }
  ctx.putImageData(frame,0,0);
+ scheduleInk();
 }
 
+// V6: composite print as part of the cloth, not as a flat DOM image.
+const inkCache=new Map();
+let inkScheduled=false;
+function inkAsset(src){
+ if(!src)return null;
+ let cached=inkCache.get(src);
+ if(!cached){
+  const image=new Image();cached={image,loaded:false};inkCache.set(src,cached);
+  image.onload=()=>{cached.loaded=true;scheduleInk()};
+  image.onerror=()=>inkCache.delete(src);
+  image.src=src;
+ }
+ return cached.loaded||cached.image.complete&&cached.image.naturalWidth?cached.image:null;
+}
+function artFor(d){
+ const box=getBounds(d);
+ const w=Math.max(4,Math.round(box.w*1122)),h=Math.max(4,Math.round(box.h*1402));
+ const c=document.createElement('canvas');c.width=w;c.height=h;
+ const p=c.getContext('2d');
+ if(d.kind==='image'){
+  const im=inkAsset(d.src);if(!im)return null;
+  p.drawImage(im,0,0,w,h);
+ }else{
+  p.fillStyle=d.color||'#ffffff';
+  p.textAlign='center';p.textBaseline='middle';
+  p.direction=/[\u0600-\u06FF]/.test(d.text||'')?'rtl':'ltr';
+  p.font='900 '+Math.round(textSize(d,1122))+'px '+(d.font||'Impact')+',Arial,sans-serif';
+  p.fillText(d.text||'',w*.5,h*.5,w*.97);
+ }
+ return c;
+}
+function drawInk(target,photo,targetView,quality){
+ for(const d of designs.filter(item=>item.view===targetView)){
+  const art=artFor(d);
+  if(art)window.TEKO_FABRIC.print(target,photo,art,getBounds(d),quality);
+ }
+}
+function paintInk(){
+ printCtx.clearRect(0,0,1122,1402);
+ if(!photoCache[view]&&!colorPhotoCache[realPhotoKey(color[0],view)])return;
+ drawInk(printCtx,canvas,view,false);
+}
+function scheduleInk(){
+ if(inkScheduled)return;inkScheduled=true;
+ requestAnimationFrame(()=>{inkScheduled=false;paintInk()});
+}
 function hex(h){h=h.slice(1);return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]}
 function loadImages(){Object.entries(ASSETS).forEach(([v,path])=>{const im=new Image();im.onload=()=>{photoCache[v]=im;if(view===v)drawBackground()};im.onerror=()=>notify('تعذر تحميل زاوية الهودي: '+VIEW_NAMES[v]);
  // Inline original PNG bytes keep the canvas origin-clean even when index.html is opened via file://.
@@ -191,12 +239,21 @@ function addDesign(d){
  renderAll();
  notify('تمت إضافة التصميم؛ حرّكه بالسحب أو حدّد مقاسه بالسنتيمتر');
 }
-function renderDesigns(){layer.innerHTML='';designs.filter(d=>d.view===view).forEach(d=>{const b=getBounds(d),el=document.createElement('div');el.className='design'+(selectedId===d.id&&showTools?' selected':'');el.dataset.id=d.id;el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
- if(d.kind==='image'){const image=document.createElement('img');image.src=d.src;image.alt=d.sourceName;el.appendChild(image)}else{const span=document.createElement('span');span.className='tx';span.textContent=d.text;span.style.fontFamily=d.font+",Arial,sans-serif";span.style.color=d.color;span.style.fontSize=textSize(d,layer.clientWidth)+'px';
- el.appendChild(span)}
- const handle=document.createElement('span');handle.className='resize';el.appendChild(handle);layer.appendChild(el);
- if(d.kind==='text'){const span=el.querySelector('.tx');span.style.fontSize=textSize(d,layer.clientWidth)+'px';}
- });renderZones();renderEditTools()}
+function renderDesigns(){
+ layer.innerHTML='';
+ designs.filter(d=>d.view===view).forEach(d=>{
+  const b=getBounds(d),el=document.createElement('div');
+  el.className='design'+(selectedId===d.id&&showTools?' selected':'');
+  el.dataset.id=d.id;
+  el.setAttribute('aria-label','تحريك تصميم '+(d.sourceName||d.text||''));
+  el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';
+  el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
+  if(!showTools)el.style.pointerEvents='none';
+  const handle=document.createElement('span');handle.className='resize';
+  el.appendChild(handle);layer.appendChild(el);
+ });
+ renderZones();renderEditTools();scheduleInk();
+}
 function renderZones(){
  const container=$('zones');container.innerHTML='';container.style.pointerEvents='none';
  const currentErrors=designs.filter(d=>d.view===view).flatMap(d=>violations(d));
@@ -292,7 +349,7 @@ window.addEventListener('pointermove',e=>{
   const b=getBounds(d);
   el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';
   el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
-  if(d.kind==='text')el.querySelector('.tx').style.fontSize=textSize(d,layer.clientWidth)+'px';
+  scheduleInk();
  }
  renderZones();renderEditTools();renderSummary();
 });
@@ -302,21 +359,17 @@ window.addEventListener('pointercancel',finishPointer);
 // Export actual source image + graphics via canvas (no HTML capture dependency).
 // Export without mutating global view: preview and saved PNG remain on the correct angle.
 async function makePreview(targetView=view){
- const image=color[0]==='زيتي'?photoCache[targetView]:await loadRealPhoto(color[0],targetView);
- if(!image)throw new Error('صورة اللون لم تُحمّل بعد');
- const off=document.createElement('canvas');off.width=1122;off.height=1402;
- const p=off.getContext('2d');p.drawImage(image,0,0,1122,1402);
- for(const d of designs.filter(x=>x.view===targetView)){
-  const b=getBounds(d),x=b.x*1122,y=b.y*1402,w=b.w*1122,h=b.h*1402;
-  if(d.kind==='text'){
-   p.textAlign='center';p.textBaseline='middle';p.fillStyle=d.color;
-   p.font='900 '+Math.round(textSize(d,1122))+'px '+d.font+',Arial';
-   p.fillText(d.text,x+w/2,y+h/2,w);
-  }else if(d.src){
-   const artwork=await loadAsset(d.src);p.drawImage(artwork,x,y,w,h);
-  }
+ const im=color[0]==='زيتي'?photoCache[targetView]:await loadRealPhoto(color[0],targetView);
+ if(!im)throw new Error('صورة اللون لم تُحمّل بعد');
+ for(const d of designs.filter(x=>x.view===targetView&&x.kind==='image')){
+  if(!inkAsset(d.src))await loadAsset(d.src);
  }
- return new Promise((resolve,reject)=>off.toBlob(blob=>blob?resolve(blob):reject(new Error('Export failed')),'image/png'));
+ const photo=document.createElement('canvas');photo.width=1122;photo.height=1402;
+ const base=photo.getContext('2d');base.drawImage(im,0,0,1122,1402);
+ const exportCanvas=document.createElement('canvas');exportCanvas.width=1122;exportCanvas.height=1402;
+ const p=exportCanvas.getContext('2d');p.drawImage(photo,0,0);
+ drawInk(p,photo,targetView,true);
+ return new Promise((resolve,reject)=>exportCanvas.toBlob(blob=>blob?resolve(blob):reject(Error('Export failed')),'image/png'));
 }
 function loadAsset(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),15000)}

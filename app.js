@@ -198,7 +198,7 @@ function artFor(d){
   p.fillStyle=d.color||'#ffffff';
   p.textAlign='center';p.textBaseline='middle';
   p.direction=/[\u0600-\u06FF]/.test(d.text||'')?'rtl':'ltr';
-  p.font='900 '+Math.round(textSize(d,1122))+'px '+(d.font||'Impact')+',Arial,sans-serif';
+  p.font=(Number(d.fontWeight)||900)+' '+Math.round(textSize(d,1122)*(Number(d.fontScale)||1))+'px "'+(d.font||'Impact')+'",Arial,sans-serif';
   p.fillText(d.text||'',w*.5,h*.5,w*.97);
  }
  return c;
@@ -231,7 +231,7 @@ function addDesign(d){
  const sleeve=view==='left'||view==='right',w=sleeve?11:15,h=Math.min(PRINT_LIMITS.height,w/aspect);
  const newItem={
   id:id(),view,kind:d.kind||'image',src:d.src||null,
-  sourceName:d.sourceName||'تصميم',text:d.text||'',font:d.font||'Impact',color:d.color||'#ffffff',
+  sourceName:d.sourceName||'تصميم',text:d.text||'',font:d.font||'Impact',fontWeight:Number(d.fontWeight)||900,fontScale:Number(d.fontScale)||1,color:d.color||'#ffffff',
   x:sleeve?.435:.425,y:sleeve?.415:.355,w,h,ratio:aspect,keepRatio:true
  };
  designs.push(newItem);
@@ -249,8 +249,11 @@ function renderDesigns(){
   el.style.left=(b.x*100)+'%';el.style.top=(b.y*100)+'%';
   el.style.width=(b.w*100)+'%';el.style.height=(b.h*100)+'%';
   if(!showTools)el.style.pointerEvents='none';
-  const handle=document.createElement('span');handle.className='resize';
-  el.appendChild(handle);layer.appendChild(el);
+  const handle=document.createElement('span');handle.className='resize';el.appendChild(handle);
+  const remove=document.createElement('button');remove.type='button';remove.className='delete-design';
+  remove.dataset.deleteId=d.id;remove.title='حذف العنصر';remove.textContent='×';
+  remove.setAttribute('aria-label','حذف '+(d.sourceName||d.text||'التصميم'));
+  el.appendChild(remove);layer.appendChild(el);
  });
  renderZones();renderEditTools();scheduleInk();
 }
@@ -280,7 +283,28 @@ function renderZones(){
  }
  $('whatsappBtn').disabled=$('shareBtn').disabled=$('downloadBtn').disabled=Boolean(invalidDesign);
 }
-function renderEditTools(){const d=current();$('editTools').style.opacity=d?'1':'.5';$('designWidth').disabled=$('designHeight').disabled=$('removeSelected').disabled=$('lockRatio').disabled=!d;$('designWidth').value=d?Number(d.w.toFixed(1)):'';$('designHeight').value=d?Number(d.h.toFixed(1)):'';$('selectedLabel').textContent=d?`المختار: ${d.sourceName||d.text} — ${VIEW_NAMES[d.view]} · ${d.w.toFixed(1)} × ${d.h.toFixed(1)} سم`:'اختار تصميمًا للتحكم فيه.'}
+function renderEditTools(){
+ const d=current(),selected=!!d,textSelected=!!d&&d.kind==='text';
+ $('editTools').style.opacity=selected?'1':'.5';
+ for(const name of ['designWidth','designHeight','removeSelected','lockRatio','duplicateSelected','bringFront','sendBack'])$(name).disabled=!selected;
+ $('designWidth').value=selected?Number(d.w.toFixed(1)):'';
+ $('designHeight').value=selected?Number(d.h.toFixed(1)):'';
+ $('lockRatio').textContent=selected&&d.keepRatio===false?'🔓 تعديل حر':'🔒 تناسب الأبعاد';
+ $('selectedLabel').textContent=selected?
+  'المختار: '+(d.sourceName||d.text)+' — '+VIEW_NAMES[d.view]+' · '+d.w.toFixed(1)+' × '+d.h.toFixed(1)+' سم'
+  :'اختار تصميمًا للتحكم فيه.';
+ $('selectedTextTools').hidden=!textSelected;
+ if(textSelected){
+  $('selectedTextContent').value=d.text||'';
+  $('selectedFont').value=d.font||'Impact';
+  $('selectedTextColor').value=d.color||'#ffffff';
+  $('selectedFontWeight').value=String(d.fontWeight||900);
+  const percent=Math.round((Number(d.fontScale)||1)*100);
+  $('selectedFontScale').value=String(percent);
+  $('selectedFontScaleValue').textContent=percent+'%';
+ }
+ $('clearDesigns').disabled=designs.length===0;
+}
 function price(){return Math.round(store.price*(1-store.discount/100))}
 function renderPrice(){$('unitPrice').textContent=price().toLocaleString('ar-EG')+' ج.م';$('originalPrice').textContent=store.discount>0?`بدلًا من ${store.price} جنيه · خصم ${store.discount}%`:'';$('adminPrice').value=store.price;$('adminDiscount').value=store.discount;renderSummary()}
 function renderSummary(){const qty=Math.max(1,parseInt($('quantity').value)||1),amount=qty*price();$('summary').innerHTML=`<div><span>المنتج</span><b>هودي Oversize</b></div><div><span>اللون</span><b>${color[0]}</b></div><div><span>مقاس الهودي</span><b>${size}</b></div><div><span>الكمية</span><b>${qty}</b></div><div><span>عناصر الطباعة</span><b>${designs.length}</b></div><hr style="border:0;border-top:1px solid #e5e5e8"><div><span>الإجمالي قبل الشحن</span><b style="color:#d8172a;font-size:16px">${amount.toLocaleString('ar-EG')} ج.م</b></div>`}
@@ -311,7 +335,72 @@ $('uploadFile').addEventListener('change',async e=>{const f=e.target.files[0];if
 $('addText').addEventListener('click',()=>{const text=$('textContent').value.trim();if(!text){notify('اكتب الجملة أولًا');return}addDesign({kind:'text',text,font:$('font').value,color:$('textColor').value,sourceName:'كتابة: '+text.slice(0,25)})});
 $('designWidth').addEventListener('change',e=>applyMeasure('w',e.target.value));$('designHeight').addEventListener('change',e=>applyMeasure('h',e.target.value));
 $('lockRatio').addEventListener('click',()=>{const d=current();if(!d)return;d.keepRatio=d.keepRatio===false;d.ratio=d.w/d.h;$('lockRatio').textContent=d.keepRatio?'🔒 تناسب الأبعاد':'🔓 تعديل حر';notify(d.keepRatio?'تم قفل تناسب الأبعاد':'تم فتح تناسب الأبعاد')});
-$('removeSelected').addEventListener('click',()=>{if(!current())return;snapshot();designs=designs.filter(d=>d.id!==selectedId);selectedId=null;renderAll()});
+function deleteDesign(designId){
+ if(!designs.some(d=>d.id===designId))return;
+ snapshot();
+ designs=designs.filter(d=>d.id!==designId);
+ if(selectedId===designId)selectedId=null;
+ renderAll();notify('تم حذف العنصر. يمكنك التراجع عن الحذف.');
+}
+$('removeSelected').addEventListener('click',()=>{if(current())deleteDesign(selectedId)});
+layer.addEventListener('click',e=>{
+ const button=e.target.closest('.delete-design');
+ if(!button)return;
+ e.preventDefault();e.stopPropagation();
+ deleteDesign(button.dataset.deleteId);
+});
+$('duplicateSelected').addEventListener('click',()=>{
+ const d=current();if(!d)return;
+ snapshot();
+ const copy={...d,id:id(),x:Math.min(.91,d.x+.025),y:Math.min(.91,d.y+.025)};
+ designs.push(copy);selectedId=copy.id;renderAll();notify('تم نسخ العنصر');
+});
+$('bringFront').addEventListener('click',()=>{
+ const d=current();if(!d)return;
+ const index=designs.indexOf(d);
+ if(index===designs.length-1)return;
+ snapshot();designs.splice(index,1);designs.push(d);renderAll();
+});
+$('sendBack').addEventListener('click',()=>{
+ const d=current();if(!d)return;
+ const index=designs.indexOf(d);
+ if(index===0)return;
+ snapshot();designs.splice(index,1);designs.unshift(d);renderAll();
+});
+$('clearDesigns').addEventListener('click',()=>{
+ if(!designs.length)return;
+ if(!window.confirm('مسح كل التصميمات والكتابة من زوايا الهودي الأربع؟ تقدر تتراجع بعد المسح.'))return;
+ snapshot();designs=[];selectedId=null;renderAll();notify('تم مسح التصميمات كلها. التراجع متاح.');
+});
+// Only the selected text is edited. Newly added text continues to use the text tab defaults.
+let editSession=null;
+function applyTextSetting(prop,value){
+ const d=current();if(!d||d.kind!=='text')return;
+ if(prop==='text'&&!(value||'').trim())return;
+ const key=d.id+':'+prop;
+ if(editSession!==key){snapshot();editSession=key}
+ d[prop]=value;
+ if(prop==='text')d.sourceName='كتابة: '+value.slice(0,25);
+ if(prop==='font'){$('selectedFont').value=value;$('font').value=value}
+ if(prop==='color'){$('selectedTextColor').value=value;$('textColor').value=value}
+ if(prop==='fontScale'){$('selectedFontScaleValue').textContent=Math.round(value*100)+'%'}
+ if(prop==='text')$('selectedLabel').textContent='المختار: '+d.sourceName+' — '+VIEW_NAMES[d.view];
+ scheduleInk();
+}
+function bindTextInput(id,property,convert){
+ const element=$(id);
+ element.addEventListener('input',e=>applyTextSetting(property,convert?convert(e.target.value):e.target.value));
+ element.addEventListener('change',()=>{editSession=null});
+ element.addEventListener('blur',()=>{editSession=null});
+}
+bindTextInput('selectedTextContent','text');
+bindTextInput('selectedFont','font');
+bindTextInput('font','font');
+bindTextInput('selectedTextColor','color');
+bindTextInput('textColor','color');
+bindTextInput('selectedFontWeight','fontWeight',value=>Number(value));
+bindTextInput('selectedFontScale','fontScale',value=>Number(value)/100);
+if(document.fonts)document.fonts.ready.then(scheduleInk).catch(()=>{});
 $('undoBtn').addEventListener('click',()=>{if(!history.length)return;future.push(JSON.stringify(designs));designs=JSON.parse(history.pop());selectedId=null;renderAll()});$('redoBtn').addEventListener('click',()=>{if(!future.length)return;history.push(JSON.stringify(designs));designs=JSON.parse(future.pop());selectedId=null;renderAll()});
 function toggleCleanPreview(){
  showTools=!showTools;
@@ -326,6 +415,7 @@ if($('cleanPreviewBtn'))$('cleanPreviewBtn').addEventListener('click',toggleClea
 $('quantity').addEventListener('input',renderSummary);
 // Drag to position; resize from the lower-right corner. Both stay in real-centimeter units.
 layer.addEventListener('pointerdown',e=>{
+ if(e.target.closest('.delete-design'))return;
  const el=e.target.closest('.design');if(!showTools)return;
  if(!el){if(selectedId){selectedId=null;renderDesigns();}return;}
  const d=designs.find(x=>x.id===el.dataset.id);if(!d)return;

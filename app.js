@@ -937,8 +937,8 @@ function uploadZipWithProgress(url,zip){
   }
  });
 }
-async function uploadZipForSupabase(code){
- cloudPreparedZip=await buildOrderPackage(code,{fastCloud:true,onStage:cloudMessage});
+async function uploadZipForSupabase(code,testingZip=null){
+ cloudPreparedZip=testingZip||await buildOrderPackage(code,{fastCloud:true,onStage:cloudMessage});
  assertCloudNotCancelled();
  requireCloudTime(10000);
  const zip=cloudPreparedZip;
@@ -1063,6 +1063,72 @@ $('whatsappBtn').addEventListener('click',async()=>{
 setupOrderCloud();
 if(CLOUD_ACTIVE&&ORDER_CLOUD.enabled!==true){
  cloudMessage('وضع اختبار Supabase — الطلبات الحقيقية على الرابط العادي لم تتغير. أكمل التحقق وجرب ملف ZIP صغيرًا.');
+ const tester=$('testCloudZipBtn'),report=$('cloudTestReport'),download=$('testCloudDownload');
+ $('cloudTestPanel').hidden=false;
+ tester.addEventListener('click',async()=>{
+  if(cloudUploading)return;
+  if(!turnstileToken){
+   report.textContent='أكمل تحقق Cloudflare الموجود فوق الزر، ثم اضغط الاختبار.';
+   $('cloudSecurity').scrollIntoView({block:'center',behavior:'smooth'});
+   return;
+  }
+  cloudUploading=true;
+  cloudCancelRequested=false;
+  cloudDeadlineAt=Date.now()+55000;
+  cloudPreparedZip=null;
+  const began=performance.now();
+  const checkout=$('whatsappBtn');
+  checkout.disabled=true;
+  tester.disabled=true;tester.textContent='جاري اختبار الرفع...';
+  download.hidden=true;download.removeAttribute('href');
+  report.textContent='1/4 — تجهيز ZIP تجريبي صغير (بدون بيانات عملاء)...';
+  const stages=[];
+  try{
+   const zip=await window.TEKO_PACKAGE.bundle([{
+    name:'test/teko-storage-check.txt',
+    blob:new Blob(['TEKO STORE — Supabase private ZIP test (no customer information).'],{type:'text/plain;charset=utf-8'})
+   }]);
+   if(zip.size<22||zip.size>1024*1024)throw new Error('حجم ملف اختبار ZIP غير متوقع.');
+   stages.push({stage:'zip',seconds:Math.round((performance.now()-began)/100)/10});
+   report.textContent='2/4 — جاري رفع ملف ZIP صغير إلى مساحة Supabase الخاصة...';
+   const link=await uploadZipForSupabase('TK-SMOKE-TEST',zip);
+   stages.push({stage:'upload-and-sign',seconds:Math.round((performance.now()-began)/100)/10});
+   // Downloading is the only definitive end-to-end validation that the link
+   // works from another HTTP client. Never log the signed bearer URL or token.
+   const checked=new URL(link);
+   if(checked.origin!==new URL(ORDER_CLOUD.supabaseOrigin).origin||
+      !checked.pathname.startsWith('/storage/v1/object/sign/teko-orders/orders/'))
+     throw new Error('تم استلام رابط غير متوقع من Supabase.');
+   download.href=link;
+   download.hidden=false;
+   report.textContent='3/4 — تم الرفع وإنشاء رابط. جاري فحص تنزيل ZIP...';
+   const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),10000);
+   let fileResponse;
+   try{fileResponse=await fetch(link,{method:'GET',cache:'no-store',signal:ctrl.signal})}
+   finally{clearTimeout(timeout)}
+   if(!fileResponse.ok)throw new Error('فشل تنزيل الرابط الموقّع (HTTP '+fileResponse.status+').');
+   const received=new Uint8Array(await fileResponse.arrayBuffer());
+   if(received.byteLength!==zip.size||received[0]!==80||received[1]!==75||
+      received[2]!==3||received[3]!==4){
+    throw new Error('تم التنزيل لكن ملف ZIP مختلف عن الملف الذي رفعناه.');
+   }
+   const elapsed=Math.round((performance.now()-began)/100)/10;
+   stages.push({stage:'download-verified',seconds:elapsed});
+   report.textContent='✅ نجح اختبار الرفع + رابط التحميل + تنزيل ZIP في '+elapsed+' ثانية. الرابط متاح للتحميل التجريبي لمدة تصل إلى 7 أيام؛ الحذف التلقائي لم يُفعّل بعد.';
+   cloudMessage('اختبار Supabase ناجح. لم يتم إرسال أي رسالة واتساب ولم تُستخدم بيانات عميل.');
+   notify('نجح اختبار رفع وتحميل ZIP من Supabase');
+  }catch(error){
+   const elapsed=Math.round((performance.now()-began)/100)/10;
+   report.textContent='❌ لم يكتمل الاختبار بعد '+elapsed+' ثانية: '+(error.message||'خطأ غير معروف')+
+    (download.hidden?'':' — رابط الملف متاح للاختبار اليدوي بزر التحميل بالأسفل.');
+   cloudMessage('فشل الاختبار التجريبي؛ رابط المتجر العادي لم يتأثر.');
+  }finally{
+   refreshChallenge();
+   cloudUploading=false;cloudDeadlineAt=0;cloudPreparedZip=null;cloudCancelRequested=false;
+   tester.disabled=false;tester.textContent='إعادة اختبار التخزين السحابي';
+   checkout.disabled=false;
+  }
+ });
 }
 // V15: one checkout button, without additional sharing controls.
 // WhatsApp links cannot attach local files directly: ZIP downloads, then the owner message opens.

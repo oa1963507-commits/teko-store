@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>TEKO STORE — إدارة الطلبات</title>
+<style>
+:root{--red:#dc2645;--ink:#202127;--muted:#747780;--edge:#e6e8ed;--soft:#f6f7f9}
+*{box-sizing:border-box}body{margin:0;font:15px Tahoma,Arial,sans-serif;background:var(--soft);color:var(--ink)}
+button,input,select{font:inherit}button{cursor:pointer}
+header{background:#181a20;color:white;padding:17px max(18px,calc((100vw - 1200px)/2));display:flex;justify-content:space-between;align-items:center;gap:14px}
+header b{font-size:21px;letter-spacing:1px}header b span{color:#f14462}
+header a{color:#ddd;text-decoration:none;font-size:13px}
+main{max-width:1200px;margin:24px auto;padding:0 18px}
+.panel{background:#fff;border:1px solid var(--edge);border-radius:16px;padding:22px;box-shadow:0 8px 28px #2221;margin-bottom:18px}
+h1{font-size:24px;margin:0 0 10px}h2{font-size:19px;margin:0 0 16px}p{line-height:1.9}small,.muted{color:var(--muted)}.muted{font-size:13px}
+.form{display:grid;gap:12px;max-width:470px}.form label{font-size:13px;font-weight:bold}
+input,select{border:1px solid #d7d9dd;border-radius:9px;padding:11px 12px;background:white;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid #ffb3c0;border-color:#da2b48}
+button,.btn{border:0;background:var(--red);color:white;border-radius:9px;padding:11px 17px;font-weight:700;text-decoration:none}
+button.alt{background:#efeff2;color:var(--ink)}button:disabled{opacity:.55;cursor:not-allowed}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.between{justify-content:space-between}
+.tools{display:grid;grid-template-columns:minmax(170px,1fr) 175px auto;gap:10px;margin:15px 0}
+.notice{padding:13px;border-radius:10px;background:#fff5f5;border:1px solid #ffd6db;color:#9e1830;font-size:13px}
+#message{min-height:25px;color:#a12840;font-size:13px;font-weight:bold}
+.table-wrap{overflow-x:auto;border:1px solid var(--edge);border-radius:12px}
+table{width:100%;border-collapse:collapse;text-align:right;min-width:790px}
+th,td{padding:12px;border-bottom:1px solid #ececf0;vertical-align:middle;font-size:13px}
+th{background:#fafafd;font-size:12px}tr:last-child td{border-bottom:0}
+code{direction:ltr;display:inline-block;background:#f3f3f4;padding:3px 6px;border-radius:4px}
+.badge{background:#f5e9eb;border-radius:30px;padding:5px 9px;font-size:11px;display:inline-block}
+.status-select{max-width:170px}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:12px}
+#detailPanel{background:#fff}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.detail-grid p{margin:3px 0;word-break:break-word}
+footer{max-width:1200px;margin:30px auto;padding:12px 18px;color:var(--muted);font-size:12px}
+[hidden]{display:none!important}@media(max-width:740px){.tools{grid-template-columns:1fr}.panel{padding:15px}.detail-grid{grid-template-columns:1fr}header{padding:15px}.row{align-items:stretch}}
+</style>
+</head>
+<body>
+<header><b>TEKO <span>STORE</span></b><a href="./">العودة للمتجر</a></header>
+<main>
+<section id="loginPanel" class="panel">
+ <h1>إدارة طلبات TEKO STORE</h1>
+ <p class="muted">لوحة المالك الخاصة. تسجيل الدخول من خلال Supabase Auth. بيانات العملاء لا تظهر إلا للحساب المصرّح له من الخادم.</p>
+ <p class="notice" id="configNotice" hidden>لم يتم إعداد مفتاح Supabase العام أو تشغيل خدمة إدارة الطلبات بعد. راجع تعليمات إعداد اللوحة.</p>
+ <form id="loginForm" class="form">
+  <label for="loginEmail">البريد الإلكتروني للمالك</label>
+  <input type="email" id="loginEmail" autocomplete="username" required>
+  <label for="loginPassword">كلمة المرور</label>
+  <input type="password" id="loginPassword" autocomplete="current-password" required>
+  <button id="loginButton" type="submit">تسجيل دخول آمن</button>
+ </form>
+ <p id="loginStatus" role="status" aria-live="polite"></p>
+</section>
+<section id="appPanel" hidden>
+ <div class="panel row between">
+  <div><h1>الطلبات</h1><div class="muted">البيانات مسجلة في Supabase، وليست على هذا الجهاز فقط.</div></div>
+  <button id="logoutButton" class="alt">تسجيل خروج</button>
+ </div>
+ <div class="panel">
+  <div class="row between"><h2>إدارة الطلبات</h2><span class="muted" id="orderCount"></span></div>
+  <form class="tools" id="filterForm">
+   <input id="searchOrders" placeholder="بحث بالاسم أو رقم الطلب أو الهاتف" aria-label="بحث في الطلبات">
+   <select id="filterStatus" aria-label="حالة الطلب">
+    <option value="all">جميع الحالات</option>
+    <option value="new">جديد</option>
+    <option value="reviewing">قيد المراجعة</option>
+    <option value="in_production">قيد التنفيذ</option>
+    <option value="ready">جاهز</option>
+    <option value="delivered">تم التسليم</option>
+    <option value="cancelled">ملغي</option>
+   </select>
+   <button type="submit">بحث / تحديث</button>
+  </form>
+  <div id="message" role="status" aria-live="polite"></div>
+  <div class="table-wrap">
+   <table><thead><tr>
+    <th>رقم الطلب</th><th>تاريخ الطلب</th><th>العميل</th><th>اللون / المقاس</th>
+    <th>الكمية</th><th>الإجمالي المبدئي</th><th>الحالة</th><th>الإجراءات</th>
+   </tr></thead><tbody id="ordersBody"></tbody></table>
+  </div>
+  <div class="row between" style="margin-top:16px">
+   <button id="prevPage" type="button" class="alt">السابق</button>
+   <span id="pagination" class="muted">صفحة 1</span>
+   <button id="nextPage" type="button" class="alt">التالي</button>
+  </div>
+ </div>
+ <section class="panel" id="detailPanel" hidden>
+  <div class="row between"><h2>تفاصيل الطلب</h2><button id="closeDetail" class="alt" type="button">إغلاق</button></div>
+  <div class="detail-grid" id="detailContent"></div>
+  <h3>عناصر التصميم</h3><div id="designDetails"></div>
+  <p class="muted">رابط ZIP يتجدد عند الطلب؛ ملفات ZIP نفسها قد تُحذف بعد 7 أيام، مع بقاء بيانات الطلب.</p>
+ </section>
+</section>
+</main>
+<footer>TEKO STORE · لوحة إدارة خاصة · الأرقام الظاهرة من العميل عروض سعر مبدئية وليست مدفوعات مؤكدة</footer>
+<script src="owner-config.js?v=24"></script>
+<script src="owner.js?v=24"></script>
+</body>
+</html>

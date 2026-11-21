@@ -794,6 +794,10 @@ const CLOUD_ACTIVE=(()=>{
  }catch{return false}
 })();
 let turnstileToken=null,turnstileWidget=null,cloudUploading=false;
+let activeCloudXHR=null,cloudCancelRequested=false;
+function assertCloudNotCancelled(){
+ if(cloudCancelRequested)throw new Error('تم إلغاء الرفع. لم يتم إرسال الطلب على واتساب.');
+}
 function cloudMessage(text){
  const el=$('cloudStatus');
  if(el){el.textContent=text;if(CLOUD_ACTIVE)el.hidden=false}
@@ -842,12 +846,72 @@ async function supabaseAction(action,body){
  if(!response.ok)throw new Error(data.error||'تعذر التواصل مع تخزين Supabase');
  return data;
 }
+// Explicit upload progress and bounded waiting instead of an indefinitely pending fetch.
+// Signed ZIP URLs are private bearer links; NEVER print or expose them in error messages.
+function uploadZipWithProgress(url,zip){
+ return new Promise((resolve,reject)=>{
+  const request=new XMLHttpRequest();
+  activeCloudXHR=request;
+  let finished=false,lastActivity=Date.now();
+  const startTime=Date.now(),totalTimeoutMs=6*60*1000,stallTimeoutMs=55*1000;
+  const watchdog=setInterval(()=>{
+   if(finished)return;
+   const idleMs=Date.now()-lastActivity;
+   if(idleMs>stallTimeoutMs){
+    finish(new Error('توقف نقل البيانات لمدة دقيقة تقريبًا. راجع الاتصال وحاول إعادة الرفع.'));
+    request.abort();
+   }
+  },5000);
+  function finish(error){
+   if(finished)return;
+   finished=true;clearInterval(watchdog);
+   if(activeCloudXHR===request)activeCloudXHR=null;
+   if(error)reject(error);else resolve();
+  }
+  request.upload.onprogress=event=>{
+   lastActivity=Date.now();
+   if(event.lengthComputable&&zip.size>0){
+    const pct=Math.min(99,Math.floor(event.loaded/zip.size*100));
+    const mb=(event.loaded/(1024*1024)).toFixed(1);
+    const total=(zip.size/(1024*1024)).toFixed(1);
+    cloudMessage('جاري رفع ZIP إلى Supabase: '+pct+'% ('+mb+' من '+total+' MB)');
+   }else cloudMessage('جاري رفع ملف ZIP إلى Supabase... يمكنك إلغاء الرفع.');
+  };
+  request.onload=()=>{
+   if(request.status>=200&&request.status<300){
+    cloudMessage('✓ اكتمل نقل ملف ZIP، جاري تأكيد وصوله للخادم...');
+    finish();
+    return;
+   }
+   let message='';
+   try{
+    const details=JSON.parse(request.responseText||'{}');
+    message=details.message||details.error||'';
+   }catch{}
+   finish(new Error('رفض Supabase عملية الرفع (HTTP '+request.status+'). '+String(message).slice(0,180)));
+  };
+  request.onerror=()=>finish(new Error('تعذّر اتصال الرفع بـ Supabase. افحص الإنترنت وإعداد CORS من Network في أدوات المطور.'));
+  request.ontimeout=()=>finish(new Error('انتهت مهلة الرفع؛ لم يتم إرسال الطلب. جرّب ملفًا أصغر أو اتصالًا أسرع.'));
+  request.onabort=()=>finish(new Error(cloudCancelRequested?'تم إلغاء الرفع.':'توقفت عملية رفع الملف.'));
+  try{
+   if(cloudCancelRequested){finish(new Error('تم إلغاء الرفع.'));return}
+   request.open('PUT',url,true);
+   request.timeout=totalTimeoutMs;
+   request.setRequestHeader('Content-Type','application/zip');
+   request.send(zip);
+  }catch(error){
+   finish(new Error('تعذّر بدء الرفع: '+(error.message||'خطأ في المتصفح')));
+  }
+ });
+}
 async function uploadZipForSupabase(code){
  const zip=await buildOrderPackage(code);
+ assertCloudNotCancelled();
  const maxBytes=40*1024*1024;
  if(zip.size>maxBytes)throw new Error('ملف الطلب أكبر من 40 ميجابايت؛ قلّل الصور قبل الإرسال.');
  cloudMessage('جاري تجهيز رابط رفع آمن من Supabase...');
  const request=await supabaseAction('init',{size:zip.size,turnstileToken});
+ assertCloudNotCancelled();
  const expectedOrigin=new URL(ORDER_CLOUD.supabaseOrigin).origin;
  const upload=new URL(request.uploadUrl||'');
  if(upload.protocol!=='https:'||upload.origin!==expectedOrigin||
@@ -857,21 +921,14 @@ async function uploadZipForSupabase(code){
     Number(request.size)!==zip.size||!request.proof||!request.expires){
   throw new Error('خدمة التخزين أرجعت بيانات رفع غير صالحة.');
  }
- cloudMessage('جاري رفع ملف ZIP إلى التخزين الخاص...');
- const uploaded=await fetch(upload.toString(),{
-  method:'PUT',
-  headers:{'Content-Type':'application/zip'},
-  body:zip
- });
- if(!uploaded.ok){
-  let message='';
-  try{const body=await uploaded.json();message=body.message||body.error||''}catch{}
-  throw new Error('فشل رفع ZIP: '+(message||'التحقق من صلاحيات التخزين مطلوب.'));
- }
+ cloudMessage('جاري رفع ملف ZIP إلى التخزين الخاص (0%)...');
+ await uploadZipWithProgress(upload.toString(),zip);
+ assertCloudNotCancelled();
  cloudMessage('تم رفع الملف، جاري إصدار رابط التحميل...');
  const result=await supabaseAction('finish',{
   path:request.path,size:zip.size,expires:request.expires,proof:request.proof
  });
+ assertCloudNotCancelled();
  const link=new URL(result.downloadUrl||'');
  if(link.protocol!=='https:'||link.origin!==expectedOrigin||
     !link.pathname.startsWith('/storage/v1/object/sign/teko-orders/orders/')||
@@ -898,7 +955,13 @@ async function uploadZipForOrder(code){
  return link.toString();
 }
 $('whatsappBtn').addEventListener('click',async()=>{
- if(!validateOrder()||cloudUploading||packageBusy)return;
+ if(cloudUploading){
+  cloudCancelRequested=true;
+  cloudMessage('جاري إلغاء رفع ZIP...');
+  if(activeCloudXHR)activeCloudXHR.abort();
+  return;
+ }
+ if(!validateOrder()||packageBusy)return;
  const code=orderCode();
  if(!CLOUD_ACTIVE){
   await prepareTemporaryCheckout(code);
@@ -918,9 +981,9 @@ $('whatsappBtn').addEventListener('click',async()=>{
    tab.document.body.innerHTML='<p style="font:18px Tahoma,sans-serif;text-align:center;margin-top:15vh" dir="rtl">جاري رفع ملفات الطلب وإعداد رسالة واتساب... يمكن الرجوع للمتجر حتى يكتمل الرفع.</p>';
   }catch{}
  }
- cloudUploading=true;
+ cloudUploading=true;cloudCancelRequested=false;
  const button=$('whatsappBtn'),oldLabel=button.textContent;
- button.disabled=true;button.textContent='جاري رفع الطلب وتجهيز الرابط...';
+ button.disabled=false;button.textContent='إلغاء رفع الطلب';
  try{
   const link=await uploadZipForOrder(code);
   recordOrder(code);
@@ -935,7 +998,7 @@ $('whatsappBtn').addEventListener('click',async()=>{
   notify('فشل رفع ملف الطلب: '+(error.message||'جرّب مرة أخرى'));
  }finally{
   refreshChallenge();
-  cloudUploading=false;
+  cloudUploading=false;cloudCancelRequested=false;
   button.disabled=false;button.textContent=oldLabel;
  }
 });

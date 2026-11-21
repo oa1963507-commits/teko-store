@@ -785,7 +785,7 @@ function recordOrder(code){
 }
 // V13: upload ZIP first; add a real signed download URL to the owner WhatsApp message.
 const ORDER_CLOUD=window.TEKO_CLOUD||{};
-const CLOUD_URL=(ORDER_CLOUD.workerUrl||'').replace(/\/+$/,'');
+const CLOUD_URL=String(ORDER_CLOUD.functionUrl||ORDER_CLOUD.workerUrl||'').replace(/\/+$/,'');
 const CLOUD_ACTIVE=(()=>{
  try{
   const url=new URL(CLOUD_URL);
@@ -794,7 +794,8 @@ const CLOUD_ACTIVE=(()=>{
 })();
 let turnstileToken=null,turnstileWidget=null,cloudUploading=false;
 function cloudMessage(text){
- const el=$('cloudStatus');if(el)el.textContent=text;
+ const el=$('cloudStatus');
+ if(el){el.textContent=text;if(CLOUD_ACTIVE)el.hidden=false}
 }
 function refreshChallenge(){
  turnstileToken=null;
@@ -804,48 +805,96 @@ function refreshChallenge(){
 }
 function setupOrderCloud(){
  if(!CLOUD_ACTIVE){
-  cloudMessage('الحل المؤقت: جهّز ZIP وانسخ التفاصيل ثم شاركهما عبر واتساب، بدون مساحة سحابية.');
+  cloudMessage('التخزين السحابي لم يُفعّل بعد؛ يتم تنزيل ZIP وإرفاقه كمستند.');
   return;
  }
  $('cloudSecurity').hidden=false;
- cloudMessage('قبل إرسال الطلب، أكمل التحقق الأمني لرفع ملف ZIP وتوليد رابط التحميل.');
- const js=document.createElement('script');
- js.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
- js.async=true;
- js.onload=()=>{
-  if(!window.turnstile){cloudMessage('تعذر تحميل التحقق الأمني؛ جرّب تعطيل مانع الإعلانات أو تحديث الصفحة.');return}
+ const notice=$('cloudNotice');
+ if(notice)notice.innerHTML='بعد الضغط على الزر، سيتم رفع ملف الطلب ZIP لمساحة تخزين خاصة وإضافة <b>رابط تحميل آمن إلى رسالة واتساب</b>. الرابط صالح لمدة 7 أيام. اضغط إرسال داخل واتساب لإتمام الطلب.';
+ cloudMessage('أكمل التحقق الأمني لرفع ملف ZIP وتوليد رابط التحميل.');
+ const script=document.createElement('script');
+ script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+ script.async=true;
+ script.onload=()=>{
+  if(!window.turnstile){cloudMessage('تعذر تحميل التحقق الأمني. جرّب تحديث الصفحة أو تعطيل مانع الإعلانات.');return}
   try{
    turnstileWidget=window.turnstile.render('#cloudTurnstile',{
     sitekey:ORDER_CLOUD.turnstileSiteKey,
-    callback(token){turnstileToken=token;cloudMessage('التحقق جاهز. عند إرسال الطلب سيتم رفع ZIP وإضافة رابطه إلى رسالة واتساب.')},
+    callback(token){turnstileToken=token;cloudMessage('✓ التحقق جاهز. اضغط تجهيز ومشاركة الطلب للرفع على Supabase.')},
     'expired-callback'(){turnstileToken=null;cloudMessage('انتهت صلاحية التحقق؛ أكمله مرة أخرى.')},
     'error-callback'(){turnstileToken=null;cloudMessage('تعذر التحقق الأمني؛ حاول مرة أخرى.')}
    });
   }catch(error){cloudMessage('تعذر إعداد التحقق الأمني: '+(error.message||'خطأ'))}
  };
- js.onerror=()=>cloudMessage('تعذر تحميل خدمة التحقق الأمني. راجع اتصال الإنترنت.');
- document.head.appendChild(js);
+ script.onerror=()=>cloudMessage('تعذر تحميل خدمة التحقق الأمني. راجع الاتصال بالإنترنت.');
+ document.head.appendChild(script);
 }
-async function uploadZipForOrder(code){
- const zip=await buildOrderPackage(code);
- if(zip.size>20*1024*1024)throw new Error('ملف الطلب أكبر من 20 ميجابايت؛ قلّل الصور أو تواصل مع المتجر.');
- cloudMessage('جاري رفع ملف الطلب ZIP إلى التخزين السحابي...');
- const response=await fetch(CLOUD_URL+'/upload',{
+async function supabaseAction(action,body){
+ const response=await fetch(CLOUD_URL,{
   method:'POST',
-  headers:{
-   'Content-Type':'application/zip',
-   'X-TEKO-Turnstile':turnstileToken
-  },
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({action,...body}),
+  cache:'no-store'
+ });
+ let data;
+ try{data=await response.json()}catch{throw new Error('خدمة التخزين أرجعت رد غير صالح.')}
+ if(!response.ok)throw new Error(data.error||'تعذر التواصل مع تخزين Supabase');
+ return data;
+}
+async function uploadZipForSupabase(code){
+ const zip=await buildOrderPackage(code);
+ const maxBytes=40*1024*1024;
+ if(zip.size>maxBytes)throw new Error('ملف الطلب أكبر من 40 ميجابايت؛ قلّل الصور قبل الإرسال.');
+ cloudMessage('جاري تجهيز رابط رفع آمن من Supabase...');
+ const request=await supabaseAction('init',{size:zip.size,turnstileToken});
+ const expectedOrigin=new URL(ORDER_CLOUD.supabaseOrigin).origin;
+ const upload=new URL(request.uploadUrl||'');
+ if(upload.protocol!=='https:'||upload.origin!==expectedOrigin||
+    !upload.pathname.startsWith('/storage/v1/object/upload/sign/teko-orders/orders/')||
+    !upload.searchParams.get('token')||
+    typeof request.path!=='string'||!/^orders\/[a-f0-9-]{36}\.zip$/.test(request.path)||
+    Number(request.size)!==zip.size||!request.proof||!request.expires){
+  throw new Error('خدمة التخزين أرجعت بيانات رفع غير صالحة.');
+ }
+ cloudMessage('جاري رفع ملف ZIP إلى التخزين الخاص...');
+ const uploaded=await fetch(upload.toString(),{
+  method:'PUT',
+  headers:{'Content-Type':'application/zip'},
   body:zip
  });
- let payload;
- try{payload=await response.json()}catch{throw new Error('الرد من خدمة التخزين غير صالح')}
- if(!response.ok)throw new Error(payload.error||'تعذر رفع ملف الطلب');
- const url=new URL(payload.downloadUrl);
- if(url.protocol!=='https:'||url.origin!==new URL(CLOUD_URL).origin||!url.pathname.startsWith('/download/')){
-  throw new Error('خدمة التخزين لم تُرجع رابط تحميل صالحًا');
+ if(!uploaded.ok){
+  let message='';
+  try{const body=await uploaded.json();message=body.message||body.error||''}catch{}
+  throw new Error('فشل رفع ZIP: '+(message||'التحقق من صلاحيات التخزين مطلوب.'));
  }
- return url.toString();
+ cloudMessage('تم رفع الملف، جاري إصدار رابط التحميل...');
+ const result=await supabaseAction('finish',{
+  path:request.path,size:zip.size,expires:request.expires,proof:request.proof
+ });
+ const link=new URL(result.downloadUrl||'');
+ if(link.protocol!=='https:'||link.origin!==expectedOrigin||
+    !link.pathname.startsWith('/storage/v1/object/sign/teko-orders/orders/')||
+    !link.searchParams.get('token')){
+  throw new Error('تم الرفع، لكن رابط التنزيل غير صالح. لا تُرسل الطلب قبل معالجة الخطأ.');
+ }
+ return link.toString();
+}
+async function uploadZipForOrder(code){
+ if(ORDER_CLOUD.provider==='supabase')return uploadZipForSupabase(code);
+ // Legacy Cloudflare Worker path remains available only when explicitly configured.
+ const zip=await buildOrderPackage(code);
+ if(zip.size>20*1024*1024)throw new Error('ملف الطلب أكبر من 20 ميجابايت.');
+ cloudMessage('جاري رفع ملف ZIP...');
+ const response=await fetch(CLOUD_URL+'/upload',{
+  method:'POST',headers:{'Content-Type':'application/zip','X-TEKO-Turnstile':turnstileToken},body:zip
+ });
+ let data;
+ try{data=await response.json()}catch{throw new Error('الرد من التخزين غير صالح')}
+ if(!response.ok)throw new Error(data.error||'تعذر رفع الملف');
+ const link=new URL(data.downloadUrl||'');
+ if(link.protocol!=='https:'||link.origin!==new URL(CLOUD_URL).origin||
+    !link.pathname.startsWith('/download/'))throw new Error('رابط تحميل غير صالح');
+ return link.toString();
 }
 $('whatsappBtn').addEventListener('click',async()=>{
  if(!validateOrder()||cloudUploading||packageBusy)return;

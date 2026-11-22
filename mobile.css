@@ -176,3 +176,14 @@ html{scroll-padding-top:92px}
 }
 .install-help-done:hover{background:#ff3756}
 @media(max-width:365px){.install-help-dialog{padding:23px 16px 18px}.install-help-dialog h2{font-size:19px}}
+
+/* V42 — mobile product cards: balance legible headings and studio photography. */
+@media(max-width:520px){
+ .home-section-header{padding-inline:5px}
+ .home-section h2{font-size:clamp(23px,6.2vw,30px);line-height:1.45}
+ .home-product-art{height:clamp(265px,77vw,340px)}
+ .home-product-art img{max-height:100%;max-width:100%}
+ .home-product-footer{padding:16px 17px;gap:12px}
+ .home-product-footer strong{font-size:15px;line-height:1.4}
+ .home-product-footer small{font-size:11px;line-height:1.6}
+}

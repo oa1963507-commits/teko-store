@@ -293,3 +293,52 @@ body{background:#08080b;color:#f7f4f7}
   max-height:465px;
  }
 }
+
+/* V42 — storefront product photography integration.
+   Source mockups include opaque light-gray studio backgrounds.
+   Preserve exact garment colors (remove lighten blend) and softly feather
+   the square backdrop into TEKO's dark card instead of showing a hard box.
+   No source product photos or printing/editor assets are altered. */
+.home-product-art{
+ position:relative;
+ isolation:isolate;
+ padding:0;
+ background:radial-gradient(ellipse 58% 66% at 50% 48%,#3b2631 0%,#20131b 58%,#110e13 100%);
+ overflow:hidden;
+}
+.home-product-art::before{
+ content:"";
+ position:absolute;
+ inset:0;
+ background:radial-gradient(ellipse 43% 58% at 50% 43%,#ab738329 0%,#44172518 56%,transparent 100%);
+ pointer-events:none;
+}
+.home-product-art img{
+ position:relative;
+ z-index:1;
+ display:block;
+ width:auto;
+ max-width:100%;
+ height:100%;
+ max-height:100%;
+ object-fit:contain;
+ mix-blend-mode:normal;
+ -webkit-mask-image:radial-gradient(ellipse 54% 62% at 50% 47%,#000 70%,transparent 100%);
+ mask-image:radial-gradient(ellipse 54% 62% at 50% 47%,#000 70%,transparent 100%);
+ transition:transform .25s ease;
+}
+/* White and burgundy products remain faithful to the approved studio photos;
+   only the edges of each opaque background are visually blended. */
+@media(max-width:850px){
+ .home-section-header{padding-inline:3px}
+ .home-section h2{font-size:clamp(22px,5.1vw,34px);overflow-wrap:break-word}
+}
+@media(max-width:520px){
+ .home-product-art{height:290px}
+ .home-product-art img{max-width:100%}
+ .home-product-footer{min-width:0;gap:12px}
+ .home-product-footer>div{min-width:0}
+}
+@media(prefers-reduced-motion:reduce){
+ .home-product-art img{transition:none}
+}

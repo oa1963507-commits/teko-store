@@ -64,7 +64,7 @@
  function validItem(d){
   if(!d||!['front','back','left','right'].includes(d.view)||!['image','text'].includes(d.kind))return false;
   if(![d.x,d.y,d.w,d.h].every(v=>Number.isFinite(Number(v))))return false;
-  if(d.w<2||d.w>40||d.h<2||d.h>45||d.x<-.13||d.x>1.09||d.y<-.13||d.y>1.09)return false;
+  if(d.w<2||d.w>40||d.h<2||d.h>60||d.x<-.13||d.x>1.09||d.y<-.13||d.y>1.09)return false;
   if(d.kind==='image'){
    if(typeof d.src!=='string'||d.src.length>16e6)return false;
    return /^data:image\/(png|jpeg|webp|gif);base64,/i.test(d.src)||/^(?:\.\/)?assets\//.test(d.src);

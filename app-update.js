@@ -149,7 +149,6 @@
   window.addEventListener("load",()=>{
    navigator.serviceWorker.ready.then(async registration=>{
     try{
-     registration.updateViaCache="none";
      await registration.update();
     }catch{/* Not all browsers permit immediate SW update. */}
    }).catch(()=>{});

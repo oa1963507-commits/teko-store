@@ -155,7 +155,7 @@
   // Service worker is network-only: never cache customer artwork, cart or checkout data.
   if("serviceWorker" in navigator){
     window.addEventListener("load",()=>{
-      navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(()=>{
+      navigator.serviceWorker.register("./sw.js",{scope:"./",updateViaCache:"none"}).catch(()=>{
         // Failure does not block design tools, checkout or manual home-screen addition.
       });
     });

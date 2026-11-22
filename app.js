@@ -39,7 +39,7 @@ const VIEW_NAMES={front:'الأمام',back:'الخلف',left:'الجانب 1',r
 const SIZES={M:[60,70,58],L:[62,72,60],XL:[64,74,62],'2XL':[66,76,64],'3XL':[68,78,66]};
 const COLORS=[['أبيض','#f2efeb'],['أسود','#18181a'],['زيتي','#66744a'],['برجندي','#743043'],['كحلي','#273851'],['رمادي','#83888c'],['بيج','#c9b79c'],['بني','#79543f']];
 const DEFAULT_GALLERY=[{id:'g1',name:'TEKO BOLD',text:'TEKO'},{id:'g2',name:'STREET ENERGY',text:'STREET'},{id:'g3',name:'YOUR STYLE',text:'YOUR STYLE'},{id:'g4',name:'NO LIMITS',text:'NO LIMITS'}];
-const PRINT_LIMITS={width:40,height:45};
+const PRINT_LIMITS={width:40,height:60};
 const DEFAULT={price:650,discount:0,gallery:DEFAULT_GALLERY,orders:[]};
 const $=id=>document.getElementById(id);
 let store;try{store={...DEFAULT,...JSON.parse(localStorage.getItem('teko-store-demo')||'{}')}}catch{store={...DEFAULT}};
@@ -125,7 +125,7 @@ function violations(d){
  const b=getBounds(d);
  const result=areas[d.view].filter(zone=>overlaps(b,zone));
  if(!onPrintablePart(b,d.view))result.push({...b,label:'خارج القماش أو مساحة الطباعة المتاحة'});
- if(d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)result.push({...b,label:'تجاوز مقاس الطباعة 40 × 45 سم'});
+ if(d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)result.push({...b,label:'تجاوز مقاس الطباعة 40 × 60 سم'});
  return result;
 }
 function hasErrors(){return designs.some(d=>violations(d).length>0)}
@@ -303,7 +303,7 @@ function applyMeasure(axis,n){const d=current();if(!d)return;
  snapshot();let w=axis==='w'?input:d.w,h=axis==='h'?input:d.h;
  if(d.keepRatio!==false){if(axis==='w')h=w/d.ratio;else w=h*d.ratio;}
  const result=clampPrintSize(d,w,h);d.w=+result.w.toFixed(2);d.h=+result.h.toFixed(2);
- if(Math.abs(d.w-w)>.02||Math.abs(d.h-h)>.02)notify('الحد الأقصى للطباعة 40 سم عرض × 45 سم ارتفاع');
+ if(Math.abs(d.w-w)>.02||Math.abs(d.h-h)>.02)notify('الحد الأقصى للطباعة 40 سم عرض × 60 سم ارتفاع مع الحفاظ على تناسب الأبعاد');
  renderDesigns();renderSummary();
 }
 // DOM events
@@ -620,7 +620,7 @@ function orderObject(code){
   code,created:new Date().toISOString(),
   customer:{name:$('customerName').value.trim(),phone:$('customerPhone').value.trim(),address:$('address').value.trim(),notes:$('notes').value.trim()},
   item:{name:'Oversize Hoodie',color:color[0],size,quantity,unitPrice:price(),basePrice:store.price,discountPercent:store.discount,totalBeforeShipping:quantity*price()},
-  print:{maxWidthCm:40,maxHeightCm:45,warning:'Preview measurements and printable areas are approximate and must be confirmed for production.'},
+  print:{maxWidthCm:PRINT_LIMITS.width,maxHeightCm:PRINT_LIMITS.height,warning:'Preview measurements and printable areas are approximate and must be confirmed for production.'},
   designs:designs.map((d,index)=>({
    number:index+1,view:d.view,viewArabic:VIEW_NAMES[d.view],kind:d.kind,
    name:d.sourceName||null,text:d.kind==='text'?d.text:null,font:d.kind==='text'?d.font:null,

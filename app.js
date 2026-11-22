@@ -434,7 +434,7 @@ function renderQuickDock(){
    '</div>'+
    '<div class="quick-dimensions">'+
    '<label>العرض (سم)<input aria-label="عرض التصميم بالسنتيمتر" data-quick-dim="w" type="number" step="0.5" min="2" max="40" value="'+d.w.toFixed(1)+'"></label>'+
-   '<label>الارتفاع (سم)<input aria-label="ارتفاع التصميم بالسنتيمتر" data-quick-dim="h" type="number" step="0.5" min="2" max="45" value="'+d.h.toFixed(1)+'"></label>'+
+   '<label>الارتفاع (سم)<input aria-label="ارتفاع التصميم بالسنتيمتر" data-quick-dim="h" type="number" step="0.5" min="2" max="60" value="'+d.h.toFixed(1)+'"></label>'+
    '</div>'+
    (d.kind==='text'?'<div class="quick-design-sep"></div><button class="quick-action" type="button" data-quick="text" style="width:100%">✎ تعديل العبارة والخط</button>':'')+
    '<div class="quick-design-sep"></div>'+

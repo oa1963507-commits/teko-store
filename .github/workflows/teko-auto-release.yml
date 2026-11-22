@@ -1,0 +1,83 @@
+name: TEKO STORE automatic PWA release marker
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'version.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: teko-store-release-marker
+  cancel-in-progress: false
+
+jobs:
+  stamp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out current store
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Read newest main commit and stamp the app
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          export TEKO_SOURCE_REV="$(git rev-parse HEAD)"
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          revision = os.environ["TEKO_SOURCE_REV"]
+          if not re.fullmatch(r"[0-9a-f]{40}", revision):
+              raise SystemExit("Invalid release revision")
+
+          index_path = Path("index.html")
+          html = index_path.read_text(encoding="utf-8")
+          html, meta_count = re.subn(
+              r'(<meta name="teko-build" content=")[0-9a-f]{40}(">)',
+              lambda match: match.group(1) + revision + match.group(2),
+              html, count=1)
+          if meta_count != 1:
+              raise SystemExit("No unique TEKO build marker in index.html")
+          index_path.write_text(html, encoding="utf-8")
+
+          worker_path = Path("sw.js")
+          worker = worker_path.read_text(encoding="utf-8")
+          worker, sw_count = re.subn(
+              r'(TEKO_BUILD_REV:\s*)[^\n]*',
+              lambda match: match.group(1) + revision,
+              worker, count=1)
+          if sw_count != 1:
+              raise SystemExit("No unique TEKO build marker in sw.js")
+          worker_path.write_text(worker, encoding="utf-8")
+
+          Path("version.json").write_text(json.dumps({
+              "revision": revision,
+              "source": "TEKO STORE build",
+              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
+          }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          print("Stamped app and service worker for release", revision)
+          PY
+      - name: Commit deployment marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html sw.js version.json
+          if git diff --cached --quiet; then
+            echo 'No release marker changes.'
+            exit 0
+          fi
+          git commit -m 'chore(pwa): publish auto-update release marker'
+          git pull --rebase origin main
+          git push origin HEAD:main

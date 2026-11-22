@@ -8,7 +8,14 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ORIGIN = "https://oa1963507-commits.github.io";
+// Only these exact production/review origins may request signed order uploads.
+const ALLOWED_ORIGINS = new Set([
+  "https://oa1963507-commits.github.io",
+  "https://teko-store.pages.dev",
+]);
+function allowedOrigin(origin: string | null): origin is string {
+  return origin !== null && ALLOWED_ORIGINS.has(origin);
+}
 const BUCKET = "teko-orders";
 const MAX_BYTES = 40 * 1024 * 1024;
 const DOWNLOAD_SECONDS = 7 * 86400;
@@ -16,8 +23,8 @@ const PROOF_TTL_MS = 15 * 60000;
 const encoder = new TextEncoder();
 
 function headers(origin: string | null) {
-  return origin === ORIGIN ? {
-    "Access-Control-Allow-Origin": ORIGIN,
+  return allowedOrigin(origin) ? {
+    "Access-Control-Allow-Origin": origin!,
     "Access-Control-Allow-Headers": "content-type, apikey, authorization",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Max-Age": "3600",
@@ -52,7 +59,7 @@ function safeEqual(a: string, b: string) {
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
 }
-async function checkTurnstile(token: string) {
+async function checkTurnstile(token: string, expectedHostname: string) {
   const secret = Deno.env.get("TURNSTILE_SECRET");
   if (!secret || !token || token.length > 2048) return false;
   const body = new FormData();
@@ -62,7 +69,7 @@ async function checkTurnstile(token: string) {
     { method: "POST", body });
   if (!check.ok) return false;
   const result = await check.json();
-  return result.success === true && result.hostname === "oa1963507-commits.github.io";
+  return result.success === true && result.hostname === expectedHostname;
 }
 
 // Staged V24: validated order details, stored only after ZIP upload completes.
@@ -106,9 +113,9 @@ function parseOrder(payload: unknown, storagePath: string): Record<string, unkno
 
 Deno.serve(async request => {
   const origin = request.headers.get("Origin");
-  if (request.method === "OPTIONS" && origin === ORIGIN)
+  if (request.method === "OPTIONS" && allowedOrigin(origin))
     return new Response(null, { status: 204, headers: headers(origin) });
-  if (origin !== ORIGIN) return json({ error: "Origin not permitted" }, 403, origin);
+  if (!allowedOrigin(origin)) return json({ error: "Origin not permitted" }, 403, origin);
   if (request.method !== "POST") return json({ error: "Method not permitted" }, 405, origin);
   if (!request.headers.get("Content-Type")?.includes("application/json"))
     return json({ error: "Expected JSON" }, 415, origin);
@@ -119,7 +126,7 @@ Deno.serve(async request => {
       const size = Number(p.size);
       if (!Number.isSafeInteger(size) || size < 22 || size > MAX_BYTES)
         return json({ error: "ZIP must be at most 40 MB" }, 413, origin);
-      if (!await checkTurnstile(String(p.turnstileToken || "")))
+      if (!await checkTurnstile(String(p.turnstileToken || ""), new URL(origin).hostname))
         return json({ error: "Security verification failed" }, 403, origin);
       const path = "orders/" + crypto.randomUUID() + ".zip";
       const { data, error } = await adminClient().storage.from(BUCKET).createSignedUploadUrl(path);

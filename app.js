@@ -859,7 +859,20 @@ function setupOrderCloud(){
     sitekey:ORDER_CLOUD.turnstileSiteKey,
     callback(token){turnstileToken=token;cloudMessage('✓ التحقق جاهز. اضغط تجهيز ومشاركة الطلب للرفع على Supabase.')},
     'expired-callback'(){turnstileToken=null;cloudMessage('انتهت صلاحية التحقق؛ أكمله مرة أخرى.')},
-    'error-callback'(){turnstileToken=null;cloudMessage('تعذر التحقق الأمني؛ حاول مرة أخرى.')}
+    'error-callback'(code){
+     turnstileToken=null;
+     const errorCode=String(code||'').trim();
+     const host=window.location.hostname;
+     if(errorCode==='110200'||errorCode==='400021'){
+      cloudMessage('تعذّر التحقق: الدومين '+host+' غير مُصرّح له في إعدادات Cloudflare Turnstile. افتح Turnstile → Widget Settings → Hostname Management وأضف الدومين. رمز الخطأ: '+errorCode);
+     }else if(errorCode==='110100'||errorCode==='110110'||errorCode==='400020'||errorCode==='400070'){
+      cloudMessage('تعذّر التحقق بسبب إعداد مفتاح Cloudflare Turnstile. راجع حالة ومفتاح الـWidget في لوحة Cloudflare. رمز الخطأ: '+errorCode);
+     }else if(errorCode==='200500'){
+      cloudMessage('تعذّر تحميل نافذة التحقق من Cloudflare. جرّب شبكة أخرى أو تعطيل إضافات حجب الإعلانات. رمز الخطأ: '+errorCode);
+     }else{
+      cloudMessage('تعذّر التحقق الأمني من Cloudflare'+(errorCode?' (رمز '+errorCode+')':'')+'. جرّب تحديث الصفحة، ثم اضغط Troubleshoot لمعرفة السبب. لم يتم رفع ملف الطلب.');
+     }
+    }
    });
   }catch(error){cloudMessage('تعذر إعداد التحقق الأمني: '+(error.message||'خطأ'))}
  };

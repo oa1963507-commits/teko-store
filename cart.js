@@ -33,7 +33,7 @@ async function write(next){
 }
 function validDesign(d){
  return !!d&&["image","text"].includes(d.kind)&&["front","back","left","right"].includes(d.view)&&
-  [d.x,d.y,d.w,d.h].every(v=>Number.isFinite(Number(v)))&&d.w>=2&&d.w<=40&&d.h>=2&&d.h<=45&&
+  [d.x,d.y,d.w,d.h].every(v=>Number.isFinite(Number(v)))&&d.w>=2&&d.w<=40&&d.h>=2&&d.h<=60&&
   (d.kind!=="image"||(typeof d.src==="string"&&d.src.length<16000000&&
   (/^data:image\/(png|jpeg|webp|gif);base64,/i.test(d.src)||/^(?:\.\/)?assets\//.test(d.src))));
 }
@@ -197,7 +197,7 @@ function payload(code){
   designs:items.flatMap((item,i)=>item.designs.map(d=>({...designInfo(d),itemIndex:i+1}))),
   items:items.map((item,i)=>({number:i+1,color:item.color,size:item.size,quantity:item.quantity,
    unitPrice:item.unitPrice,total:item.unitPrice*item.quantity,designs:item.designs.map(designInfo)})),
-  print:{maxWidthCm:40,maxHeightCm:45,warning:"Approximate print locations; confirm production placements."},
+  print:{maxWidthCm:40,maxHeightCm:60,warning:"Approximate print locations; confirm production placements."},
  };
  if(JSON.stringify(data).length>15000)throw Error("بيانات التصميمات كبيرة. قلّل العناصر أو قسّم السلة إلى طلبين");
  return data;

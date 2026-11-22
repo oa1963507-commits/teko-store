@@ -1,6 +1,6 @@
-/* TEKO STORE V39 - minimal, network-only service worker.
-   Provides the navigation fetch handler used by some install-prompt checks.
-   Never caches artwork, ZIP files, customer information, cart, or checkout data. */
+/* TEKO STORE auto-update service worker (network-first, no customer data cached).
+   TEKO_BUILD_REV: bootstrap-v45
+   This build marker is updated by the release workflow after every source push. */
 self.addEventListener("install",()=>{
   self.skipWaiting();
 });
@@ -8,7 +8,13 @@ self.addEventListener("activate",event=>{
   event.waitUntil(self.clients.claim());
 });
 self.addEventListener("fetch",event=>{
-  if(event.request.mode!=="navigate")return;
-  // Let the network serve the current site. Keep pages and order details uncached.
-  event.respondWith(fetch(event.request));
+  const request=event.request;
+  if(request.method!=="GET")return;
+  const target=new URL(request.url);
+  if(target.origin!==self.location.origin)return;
+
+  // Always request the latest same-origin pages, scripts, CSS, and mockup files.
+  // HTTP revalidation is allowed, but no offline CacheStorage is used.
+  // Requests to external Supabase and Cloudflare Turnstile are not intercepted.
+  event.respondWith(fetch(request,{cache:request.mode==="navigate"?"no-store":"no-cache"}));
 });

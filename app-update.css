@@ -1,0 +1,48 @@
+/* TEKO STORE — accessible non-blocking release update notice. */
+.teko-update-banner[hidden]{display:none!important}
+.teko-update-banner{
+ position:fixed;z-index:190;
+ inset-inline:16px;bottom:18px;
+ max-width:490px;margin-inline:auto;
+ display:flex;align-items:center;gap:11px;
+ padding:12px 13px;border:1px solid #a93651;
+ background:#191116f7;color:#fff;border-radius:15px;
+ box-shadow:0 12px 40px #000b;
+ backdrop-filter:blur(12px);font-family:Cairo,Tahoma,Arial,sans-serif;
+ direction:rtl
+}
+.teko-update-indicator{
+ display:grid;place-items:center;flex:0 0 32px;height:32px;
+ border-radius:10px;background:#8c1530;color:#fff;font:bold 24px Arial,sans-serif
+}
+.teko-update-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.teko-update-copy strong{font-size:13px;line-height:1.5}
+.teko-update-copy small{font-size:10px;line-height:1.6;color:#ddbfca}
+.teko-update-action{
+ border:0;border-radius:10px;padding:9px 12px;
+ background:#f21a3a;color:#fff;font:900 11px Cairo,Tahoma,Arial,sans-serif;
+ cursor:pointer;min-height:42px;white-space:nowrap
+}
+.teko-update-action:hover{background:#ff4260}
+.teko-update-later{
+ border:1px solid #713549;background:#30202a;color:#fff;
+ display:grid;place-items:center;cursor:pointer;
+ width:32px;height:42px;border-radius:9px;flex-shrink:0;
+ font-size:20px
+}
+.teko-update-action:focus-visible,.teko-update-later:focus-visible{
+ outline:2px solid #fff;outline-offset:2px
+}
+@media(max-width:850px){
+ .teko-update-banner{
+  inset-inline:10px;
+  bottom:calc(86px + env(safe-area-inset-bottom,0px));
+  max-width:none
+ }
+}
+@media(max-width:360px){
+ .teko-update-banner{gap:7px;padding:9px}
+ .teko-update-indicator{display:none}
+ .teko-update-action{padding:7px 8px}
+ .teko-update-copy strong{font-size:11px}
+}

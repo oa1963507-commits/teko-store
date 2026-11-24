@@ -5,16 +5,18 @@ const ASSETS={front:'assets/hoodie-front.png',back:'assets/hoodie-back.png',left
 const COLOR_SLUGS={'أبيض':'white','أسود':'black','برجندي':'burgundy','كحلي':'navy','رمادي':'gray','بيج':'beige','بني':'brown'};
 const colorPhotoCache={};
 const colorPhotoRequests={};
+const olivePhotoRequests={};
 function realPhotoKey(colorName,targetView){return colorName+':'+targetView}
 function realPhotoPath(colorName,targetView){return 'assets/hoodie-'+COLOR_SLUGS[colorName]+'-'+targetView+'.webp'}
-function loadRealPhoto(colorName,targetView){
- if(colorName==='زيتي')return Promise.resolve(photoCache[targetView]||null);
+function loadRealPhoto(colorName,targetView,priority='auto'){
+ if(colorName==='زيتي')return loadOlivePhoto(targetView,priority);
  const key=realPhotoKey(colorName,targetView);
  if(colorPhotoCache[key])return Promise.resolve(colorPhotoCache[key]);
  if(colorPhotoRequests[key])return colorPhotoRequests[key];
  return colorPhotoRequests[key]=new Promise(resolve=>{
   const image=new Image();
   image.decoding='async';
+   image.fetchPriority=priority;
   image.onload=()=>{
    delete colorPhotoRequests[key];
    colorPhotoCache[key]=image;
@@ -30,9 +32,18 @@ function loadRealPhoto(colorName,targetView){
  });
 }
 function prefetchSelectedColor(colorName,targetView=view){
+ // Prioritize the photo currently visible in the studio.
+ void loadRealPhoto(colorName,targetView,'high');
+ // Warm lightweight WebP angles later, not all four multi-MB olive PNGs.
  if(colorName==='زيتي')return;
- loadRealPhoto(colorName,targetView);
- for(const angle of Object.keys(ASSETS)){if(angle!==targetView)loadRealPhoto(colorName,angle)}
+ let delay=350;
+ for(const angle of Object.keys(ASSETS)){
+  if(angle===targetView)continue;
+  setTimeout(()=>{
+   if(color[0]===colorName)void loadRealPhoto(colorName,angle,'low');
+  },delay);
+  delay+=220;
+ }
 }
 
 const VIEW_NAMES={front:'الأمام',back:'الخلف',left:'الجانب 1',right:'الجانب 2'};
@@ -209,9 +220,42 @@ function scheduleInk(){
  requestAnimationFrame(()=>{inkScheduled=false;paintInk()});
 }
 function hex(h){h=h.slice(1);return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]}
-function loadImages(){Object.entries(ASSETS).forEach(([v,path])=>{const im=new Image();im.onload=()=>{photoCache[v]=im;if(view===v)drawBackground()};im.onerror=()=>notify('تعذر تحميل زاوية الهودي: '+VIEW_NAMES[v]);
- // Inline original PNG bytes keep the canvas origin-clean even when index.html is opened via file://.
- im.src=(window.TEKO_HOODIE_IMAGES&&window.TEKO_HOODIE_IMAGES[v])||path;})}
+function loadOlivePhoto(targetView,priority='auto'){
+ if(photoCache[targetView])return Promise.resolve(photoCache[targetView]);
+ if(olivePhotoRequests[targetView])return olivePhotoRequests[targetView];
+ // Original PNG is unchanged; no recoloring or replacement of fabric details.
+ const path=(window.TEKO_HOODIE_IMAGES&&window.TEKO_HOODIE_IMAGES[targetView])||ASSETS[targetView];
+ if(!path)return Promise.resolve(null);
+ olivePhotoRequests[targetView]=new Promise(resolve=>{
+  const im=new Image();
+  im.decoding='async';
+  im.fetchPriority=priority;
+  im.onload=()=>{
+   delete olivePhotoRequests[targetView];
+   photoCache[targetView]=im;
+   resolve(im);
+   if(color[0]==='زيتي'&&view===targetView)drawBackground();
+  };
+  im.onerror=()=>{
+   delete olivePhotoRequests[targetView];
+   resolve(null);
+   if(color[0]==='زيتي'&&view===targetView)drawBackground(true);
+  };
+  im.src=path;
+ });
+ return olivePhotoRequests[targetView];
+}
+function loadImages(){
+ // Avoid downloading ~11 MB of olive hoodie photos all at initial page load.
+ const warm=()=>prefetchSelectedColor(color[0],view);
+ if(location.hash.startsWith('#studio'))warm();
+ else if('requestIdleCallback' in window)
+  requestIdleCallback(warm,{timeout:2800});
+ else setTimeout(warm,1800);
+ window.addEventListener('hashchange',()=>{
+  if(location.hash.startsWith('#studio'))warm();
+ });
+}
 function renderColors(){window.TEKO_DRAFT?.changed();$('colors').innerHTML=COLORS.map((c,i)=>`<button class="swatch ${color[0]===c[0]?'selected':''}" data-color="${i}"><i style="background:${c[1]}"></i>${c[0]}</button>`).join('')}
 function renderSizes(){$('sizes').innerHTML=Object.keys(SIZES).map(s=>`<button class="chip ${s===size?'selected':''}" data-size="${s}">${s}</button>`).join('');let q=SIZES[size];$('sizeInfo').textContent=`عرض الصدر ${q[0]} سم · طول الهودي ${q[1]} سم · طول الكم ${q[2]} سم`}
 // Public catalog entries join the original local demo library without
@@ -605,7 +649,7 @@ window.addEventListener('pointercancel',finishPointer);
 // Export actual source image + graphics via canvas (no HTML capture dependency).
 // Export without mutating global view: preview and saved PNG remain on the correct angle.
 async function makePreview(targetView=view,format='image/png',quality=0.92){
- const im=color[0]==='زيتي'?photoCache[targetView]:await loadRealPhoto(color[0],targetView);
+ const im=await loadRealPhoto(color[0],targetView,'high');
  if(!im)throw new Error('صورة اللون لم تُحمّل بعد');
  for(const d of designs.filter(x=>x.view===targetView&&x.kind==='image')){
   if(!inkAsset(d.src))await loadAsset(d.src);

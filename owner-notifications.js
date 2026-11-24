@@ -37,6 +37,8 @@
  function render(events,unread){
   badge.textContent=unread>99?"99+":String(unread);
   badge.hidden=unread===0;
+  // Native app badge follows the same server-verified unread count.
+  void window.TEKO_OWNER_APP_BADGE?.update(unread);
   if(!events.length){list.replaceChildren(text("p","لا توجد إشعارات بعد.","owner-notification-empty"));return;}
   const fragment=document.createDocumentFragment();
   for(const e of events){
@@ -84,6 +86,7 @@
   authorized=false;lastMax=0;
   if(timer)clearInterval(timer);timer=null;
   badge.hidden=true;list.replaceChildren();
+  void window.TEKO_OWNER_APP_BADGE?.clear();
   panel.hidden=true;opened=false;bell.setAttribute("aria-expanded","false");
  }
  bell.addEventListener("click",()=>{

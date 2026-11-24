@@ -93,7 +93,7 @@
  window.addEventListener("teko-owner-signin",()=>{
   loggedIn=true;paint();
   note(enabled?
-   "صوت «رسالة-صافرة» جاهز. لو مش سامعه اضغط «تجربة الصوت» لتفعيل تشغيله.":
+   "لاستعمال صافرتك اضغط «اختيار ملف الرنّة» وحدد MP3 المرفق مرة واحدة؛ بعدها جرّب الصوت.":
    "الصوت مكتوم. اضغط زر «صوت التنبيه» لتشغيله.");
  });
  window.addEventListener("teko-owner-signout",()=>{

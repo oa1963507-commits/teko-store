@@ -102,6 +102,7 @@
 <link rel="stylesheet" href="mobile.css?v=42">
 <link rel="stylesheet" href="app-update.css?v=45">
 <link rel="stylesheet" href="additional-print-zones.css?v=47">
+<link rel="stylesheet" href="design-gallery.css?v=48">
 <link rel="stylesheet" href="intro.css?v=40">
 </head>
 <body class="teko-intro-active">
@@ -128,7 +129,7 @@
  <nav class="site-nav" id="siteNav" aria-label="القائمة الرئيسية">
   <a href="#home" data-route="home">الرئيسية</a>
   <a href="#studio" data-route="studio">استوديو التصميم</a>
-  <a href="#designs" data-route="studio">معرض التصميمات</a>
+  <a href="#gallery" data-route="gallery">معرض التصميمات</a>
   <button id="installAppBtn" class="install-app-option" type="button" aria-haspopup="dialog" aria-controls="installHelp">
    <span class="install-app-icon" aria-hidden="true">↓</span>
    <span class="install-app-copy"><strong id="installActionLabel">تثبيت TEKO كتطبيق</strong><small id="installActionHint">على شاشة موبايلك بأيقونة TEKO</small></span>
@@ -151,6 +152,7 @@
 <nav class="mobile-dock" aria-label="التنقل السريع على الهاتف">
  <a href="#home" data-route="home"><span class="dock-icon" aria-hidden="true">⌂</span><span>الرئيسية</span></a>
  <a href="#studio" data-route="studio"><span class="dock-icon" aria-hidden="true">✦</span><span>صمّم هوديك</span></a>
+  <a href="#gallery" data-route="gallery"><span class="dock-icon" aria-hidden="true">▦</span><span>المعرض</span></a>
  <a href="#cart" data-route="cart"><span class="dock-icon" aria-hidden="true">▣</span><span>السلة</span></a>
 </nav>
 <section class="home-page" id="home">
@@ -199,6 +201,37 @@
   <a href="#studio" class="teko-cta" data-start-fresh>افتح استوديو TEKO ←</a>
  </div>
 </section>
+<section class="gallery-page" id="galleryPage" hidden aria-labelledby="galleryPageTitle">
+ <header class="gallery-header">
+  <div>
+   <span class="gallery-eyebrow">TEKO / DESIGN COLLECTION</span>
+   <h1 id="galleryPageTitle">اختار تصميمك. <em>وخلّيه عليك.</em></h1>
+   <p>تصفّح تصميمات TEKO الجاهزة، شوف معاينة كل تصميم، واختاره مباشرة لاستوديو الهودي. تقدر كمان ترفع التصميم الخاص بيك.</p>
+  </div>
+  <a class="teko-cta secondary" href="#studio">+ ارفع تصميمك الخاص</a>
+ </header>
+ <div class="gallery-toolbar">
+  <label class="gallery-search" for="gallerySearch"><input id="gallerySearch" type="search" placeholder="ابحث باسم التصميم أو التصنيف..." autocomplete="off" aria-label="ابحث في تصميمات المعرض"></label>
+  <div class="gallery-categories" id="galleryCategories" aria-label="تصفية التصميمات"></div>
+ </div>
+ <div class="gallery-summary" id="galleryCount" role="status" aria-live="polite">جاري تحميل التصميمات...</div>
+ <div class="gallery-grid-public" id="publicGalleryGrid" aria-live="polite"></div>
+ <section class="gallery-empty" id="galleryEmpty" hidden>
+  <h2 id="galleryEmptyTitle">المعرض لسه بيتجهّز</h2>
+  <p id="galleryEmptyText">تابعنا قريبًا للتصميمات الجديدة.</p>
+  <button id="galleryRetry" type="button" class="gallery-category" hidden>إعادة المحاولة</button>
+ </section>
+</section>
+<dialog id="galleryDetail" class="gallery-dialog" aria-labelledby="galleryPreviewTitle">
+ <header class="gallery-dialog-header">
+  <h2 id="galleryPreviewTitle">معاينة التصميم</h2>
+  <button id="galleryPreviewClose" class="gallery-dialog-close" type="button" aria-label="إغلاق المعاينة">×</button>
+ </header>
+ <div id="galleryPreviewArt"></div>
+ <p id="galleryPreviewNote"></p>
+ <button type="button" class="gallery-try" id="galleryPreviewUse">استخدم التصميم على الهودي ←</button>
+ <div class="gallery-status" id="galleryStatus" role="status" aria-live="polite"></div>
+</dialog>
 <section id="studioView" hidden>
  <div class="store-section-title"><div><span class="tekomini">TEKO / DESIGN STUDIO</span><h1>صمّم هوديك</h1><p>جرب، عدّل، واحفظ كل تخصيص في سلتك.</p></div>
   <button type="button" class="teko-cta secondary" data-start-fresh>+ تصميم جديد</button></div>
@@ -289,7 +322,8 @@
 <script src="additional-print-zones.js?v=47"></script>
 <script src="app.js?v=47"></script>
 <script src="drafts.js?v=43"></script>
-<script src="cart.js?v=43"></script>
+<script src="cart.js?v=48"></script>
+<script src="design-gallery.js?v=48"></script>
 <script src="mobile.js?v=45"></script>
 <script src="app-update.js?v=45"></script>
 

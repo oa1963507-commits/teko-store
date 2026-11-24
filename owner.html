@@ -179,9 +179,12 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
     <div class="owner-notification-actions">
       <button type="button" id="ownerNotificationRefresh" class="alt">تحديث الإشعارات</button>
       <button type="button" id="ownerNotificationReadAll" class="alt">تعليم الظاهر كمقروء</button>
-      <button type="button" id="ownerNotificationPermission">تفعيل تنبيه المتصفح</button>
+      <button type="button" id="ownerNotificationPermission">🔔 تفعيل إشعارات الموبايل</button>
+      <button type="button" id="ownerSoundToggle" aria-pressed="false">🔇 صوت التنبيه: مكتوم</button>
+      <button type="button" id="ownerSoundTest">▶ تجربة الصوت الواحد</button>
     </div>
     <div id="ownerNotificationMessage" role="status" aria-live="polite"></div>
+    <div id="ownerSoundStatus" role="status" aria-live="polite">رنّة واحدة ثابتة لكل الإشعارات؛ تنبيهات الخلفية تستخدم صوت نظام الموبايل.</div>
     <div class="owner-notification-list" id="ownerNotificationList"></div>
   </section>
   <section id="insightsPanel" class="panel" hidden>
@@ -331,7 +334,9 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 <footer>TEKO STORE · لوحة إدارة خاصة · الأرقام الظاهرة من العميل عروض سعر مبدئية وليست مدفوعات مؤكدة</footer>
 <script src="owner-config.js?v=31"></script>
 <script src="owner.js?v=50"></script>
-<script src="owner-notifications.js?v=50"></script>
+<script src="owner-notifications.js?v=52"></script>
+<script src="owner-sound.js?v=52"></script>
+<script src="owner-push.js?v=52"></script>
 <div class="owner-install-modal" id="ownerInstallHelp" hidden>
  <section class="owner-install-modal__card" role="dialog" aria-modal="true" aria-labelledby="ownerInstallHelpTitle" aria-describedby="ownerInstallDescription" tabindex="-1">
   <button type="button" class="owner-modal-close" id="ownerInstallClose" aria-label="إغلاق خطوات تثبيت التطبيق">×</button>

@@ -25,8 +25,8 @@
   return window.TEKO_OWNER_NOTIFICATIONS_API(action,payload);
  };
  const soundOn=()=>{
-  try{return localStorage.getItem("teko_owner_sound_v1")==="1";}
-  catch{return false}
+  try{return localStorage.getItem("teko_owner_sound_v1")!=="0";}
+  catch{return true}
  };
  async function getSubscription(){
   if(!supported())return null;

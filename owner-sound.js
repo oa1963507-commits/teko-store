@@ -22,6 +22,26 @@
   return player;
  }
  function note(value){if(status)status.textContent=value;}
+ let priming=false;
+ async function prime(){
+  if(!loggedIn||!enabled||ready||priming)return;
+  priming=true;
+  try{
+   const p=audio();
+   p.muted=true;
+   const result=p.play(); // Invoked while a real user gesture is active.
+   if(result&&typeof result.then==="function")await result;
+   p.pause();p.currentTime=0;p.muted=false;
+   ready=true;
+   note("✓ تم تهيئة صوت الصافرة لتشغيله عند وصول الإشعارات.");
+  }catch{
+   if(player){player.pause();player.muted=false;}
+  }finally{priming=false;}
+ }
+ document.addEventListener?.("pointerdown",()=>void prime(),{capture:true});
+ document.addEventListener?.("keydown",event=>{
+  if(event.key==="Enter"||event.key===" ")void prime();
+ },{capture:true});
  function paint(){
   toggle.setAttribute("aria-pressed",String(enabled));
   toggle.textContent=enabled?"🔊 صوت التنبيه: شغّال":"🔇 صوت التنبيه: مكتوم";

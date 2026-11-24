@@ -59,6 +59,11 @@ Deno.serve(async request=>{
    .gte("created_at",since).order("id",{ascending:false}).limit(100);
   if(eventErr)throw Error("Notification lookup failed");
   if(!recent?.length)return json({ok:true,ready:true,sent:0,devices:devices.length});
+  // One shared owner inbox: this count is the authoritative icon-badge value.
+  const {count:unread,error:unreadError}=await db.from("teko_order_notifications")
+   .select("id",{head:true,count:"exact"}).is("owner_read_at",null);
+  if(unreadError)throw Error("Owner badge count unavailable");
+  const badgeCount=Math.max(0,Math.min(999,Number(unread)||0));
   const events=[...recent].reverse();
   const {data:receipts,error:receiptErr}=await db.from("teko_owner_push_deliveries")
    .select("subscription_id,event_id,attempts,delivered_at")
@@ -90,6 +95,7 @@ Deno.serve(async request=>{
        icon:"https://teko-store.pages.dev/icons/icon-192.png",
        badge:"https://teko-store.pages.dev/icons/icon-192.png",
        tag:"teko-owner-"+event.id,
+       badgeCount, // Used by the service worker's native app icon badge.
        silent:sub.sound_enabled===false,
        data:{type:"TEKO_OWNER_PUSH",id:event.id,body:message,url:"/owner.html"}},
       {publicKey:config.vapid_public,privateKey:config.vapid_private,
@@ -100,6 +106,10 @@ Deno.serve(async request=>{
     }catch(error){
      failed++;
      const status=Number((error as {statusCode?:number})?.statusCode)||0;
+     const safeType=error instanceof Error?error.name:"UnknownPushError";
+     const safeMessage=(error instanceof Error?error.message:"failed")
+      .replace(/https?:\\/\\/\\S+/g,"[push-url]").slice(0,180);
+     console.warn("TEKO owner push failed",status,safeType,safeMessage);
      if(status===404||status===410){
       await db.from("teko_owner_push_subscriptions").delete().eq("id",sub.id);
      }

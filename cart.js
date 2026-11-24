@@ -319,9 +319,9 @@ async function submit(){
   if(!cloudCancelRequested&&zip){
    try{
     saveBlob(zip,"TEKO-ORDER-"+code+".zip");
-    const wa="https://wa.me/201557229102?text="+encodeURIComponent(message(code,""));
-    if(tab&&!tab.closed)tab.location.replace(wa);else window.location.href=wa;
-    cloudMessage("تعذر الرفع السحابي، نزل ZIP كبديل. أرفقه في واتساب؛ قد لا يظهر هذا الطلب في لوحة المالك.");
+    if(tab&&!tab.closed)tab.close();
+    cloudMessage("الأوردر لم يتسجّل في قاعدة البيانات؛ لم يتم فتح واتساب تلقائيًا. ملف ZIP محفوظ كاحتياطي والسلة كما هي. حاول تأكيد الطلب مرة أخرى. السبب: "+(error.message||"خطأ مؤقت"));
+    notify("طلب السلة غير مسجّل؛ حاول تاني، والسلة محفوظة.");
    }catch{if(tab&&!tab.closed)tab.close();cloudMessage("فشل تجهيز السلة: "+error.message)}
   }else{if(tab&&!tab.closed)tab.close();cloudMessage("لم يكتمل طلب السلة: "+error.message)}
  }finally{

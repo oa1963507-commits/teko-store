@@ -1069,7 +1069,15 @@ async function uploadZipForSupabase(code,testingZip=null,orderOverride=null){
    finishPayload.order.customer.name='[اختبار] '+finishPayload.order.customer.name;
   }
  }
- const result=await supabaseAction('finish',finishPayload);
+ // Retry final registration once against the same uploaded ZIP and order code.
+ // The server prevents duplicate rows by enforcing the storage path uniqueness.
+ let result;
+ try{result=await supabaseAction('finish',finishPayload);}
+ catch(error){
+  if(cloudCancelRequested||cloudRemainingMs()<14000)throw error;
+  cloudMessage('جاري إعادة محاولة تأكيد تسجيل الأوردر...');
+  result=await supabaseAction('finish',finishPayload);
+ }
  if(ORDER_DB_REGISTRATION&&result.registered!==true)
   throw new Error('الملف اتّرفع لكن تسجيل الطلب في قاعدة البيانات لم يتأكد. لم تُرسل رسالة ببيانات غير مكتملة.');
  assertCloudNotCancelled();
@@ -1170,12 +1178,9 @@ $('whatsappBtn').addEventListener('click',async()=>{
   if(ORDER_CLOUD.enabled===true&&!ORDER_DB_TEST&&!cloudCancelRequested&&cloudPreparedZip){
    try{
     saveBlob(cloudPreparedZip,'TEKO-ORDER-'+code+'.zip');
-    recordOrder(code);
-    const url='https://wa.me/201557229102?text='+encodeURIComponent(orderMessage(code));
-    cloudMessage('تعذّر التخزين السحابي خلال دقيقة. تم تنزيل ZIP وفتح واتساب؛ أرفق الملف كمستند. السبب: '+(error.message||'اتصال بطيء'));
-    if(tab&&!tab.closed)tab.location.replace(url);
-    else window.location.href=url;
-    notify('طريقة بديلة: أرفق ملف ZIP الذي تم تنزيله في واتساب.');
+    if(tab&&!tab.closed)tab.close();
+    cloudMessage('الأوردر غير مسجّل في قاعدة البيانات، لذلك لم نفتح واتساب تلقائيًا. نزّلنا ZIP كنسخة احتياطية وحافظنا على تصميمك. أعد محاولة تأكيد الأوردر. السبب: '+(error.message||'خطأ مؤقت'));
+    notify('الأوردر لم يتسجّل بعد؛ حاول مرة تانية، وملف ZIP محفوظ احتياطيًا.');
    }catch(fallbackError){
     if(tab&&!tab.closed)tab.close();
     cloudMessage('فشل الرفع والتجهيز البديل: '+(fallbackError.message||''));

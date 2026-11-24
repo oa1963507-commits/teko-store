@@ -84,6 +84,23 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 @media(max-width:420px){.kpi-grid{grid-template-columns:1fr 1fr;gap:7px}.kpi{padding:11px}.kpi-value{font-size:20px}}
 
 [hidden]{display:none!important}@media(max-width:740px){.tools{grid-template-columns:1fr}.panel{padding:15px}.detail-grid{grid-template-columns:1fr}header{padding:15px}.row{align-items:stretch}}
+
+/* V50: secure TEKO owner notification inbox */
+.owner-notifications-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#ownerNotificationToggle{position:relative;border:1px solid #c9afb6;background:#fff2f4;color:#94172f;min-height:43px}
+#ownerNotificationBadge{position:absolute;top:-8px;left:-8px;min-width:22px;min-height:22px;display:grid;place-items:center;padding:2px 5px;background:#e51c39;color:#fff;border-radius:999px;font:900 10px Arial,sans-serif;border:2px solid #fff}
+.owner-notification-panel{border:1px solid #f1ced6;background:#fff9fa}
+.owner-notification-list{max-height:470px;overflow-y:auto;display:grid;gap:9px;margin:14px 0}
+.owner-notification-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:13px 15px;border:1px solid #e1dfe3;border-radius:12px;background:#fff}
+.owner-notification-item.unread{border-color:#ec9eab;background:#fff2f4}
+.owner-notification-item strong{font-size:13px;line-height:1.65;min-width:0;overflow-wrap:anywhere}
+.owner-notification-item small{color:#73737e;font-size:10px;grid-column:1/-1}
+.owner-notification-order{background:#f5e8ec;color:#a41433;border:1px solid #e6b6c1;padding:8px 11px;font-size:11px;align-self:center;grid-column:2;grid-row:1}
+.owner-notification-empty{color:#73737e;font-size:12px}
+.owner-notification-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.owner-notification-actions button{font-size:11px;padding:9px 12px}
+#ownerNotificationMessage{font-size:12px;color:#73565d;min-height:17px;margin-top:6px}
+@media(max-width:740px){.owner-notification-item{padding:10px}.owner-notifications-top{width:100%}}
 </style>
 </head>
 <body>
@@ -105,9 +122,25 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 <section id="appPanel" hidden>
  <div class="panel row between">
   <div><h1>لوحة إدارة TEKO STORE</h1><div class="muted">الطلبات وملفات الطباعة والعملاء — محفوظة بأمان في Supabase.</div></div>
-  <button id="logoutButton" class="alt">تسجيل خروج</button>
+  <div class="owner-notifications-top">
+     <button id="ownerNotificationToggle" type="button" aria-expanded="false" aria-controls="ownerNotificationPanel">🔔 إشعارات الطلبات <span id="ownerNotificationBadge" hidden>0</span></button>
+     <button id="logoutButton" class="alt">تسجيل خروج</button>
+   </div>
  </div>
- <section id="insightsPanel" class="panel" hidden>
+ <section class="panel owner-notification-panel" id="ownerNotificationPanel" hidden>
+    <div class="row between">
+      <div><h2>إشعارات المتجر</h2><p class="muted">طلبات جديدة وتحديثات الحالات، محفوظة في قاعدة البيانات حتى بعد إغلاق اللوحة.</p></div>
+      <button type="button" id="ownerNotificationClose" class="alt">إغلاق</button>
+    </div>
+    <div class="owner-notification-actions">
+      <button type="button" id="ownerNotificationRefresh" class="alt">تحديث الإشعارات</button>
+      <button type="button" id="ownerNotificationReadAll" class="alt">تعليم الظاهر كمقروء</button>
+      <button type="button" id="ownerNotificationPermission">تفعيل تنبيه المتصفح</button>
+    </div>
+    <div id="ownerNotificationMessage" role="status" aria-live="polite"></div>
+    <div class="owner-notification-list" id="ownerNotificationList"></div>
+  </section>
+  <section id="insightsPanel" class="panel" hidden>
  <div class="row between">
   <div><h2>نظرة عامة على المتجر</h2><p class="muted">الأرقام قيم طلبات مبدئية، وليست مبيعات مدفوعة أو إيرادات فعلية.</p></div>
   <div class="row"><label for="reportPeriod" class="muted">الفترة</label>
@@ -252,6 +285,7 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 </main>
 <footer>TEKO STORE · لوحة إدارة خاصة · الأرقام الظاهرة من العميل عروض سعر مبدئية وليست مدفوعات مؤكدة</footer>
 <script src="owner-config.js?v=31"></script>
-<script src="owner.js?v=33"></script>
+<script src="owner.js?v=50"></script>
+<script src="owner-notifications.js?v=50"></script>
 </body>
 </html>

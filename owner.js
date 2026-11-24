@@ -17,11 +17,13 @@ const state={token:null,expiresAt:0,page:0,total:0,items:[],busy:false,customerP
 function tell(text){$("message").textContent=text;}
 function showLogin(message=""){
  state.token=null;state.expiresAt=0;state.items=[];
+ window.dispatchEvent(new Event("teko-owner-signout"));
  $("loginPanel").hidden=false;$("appPanel").hidden=true;$("loginPassword").value="";
  $("loginStatus").textContent=message;
 }
 function showApp(){
  $("loginPanel").hidden=true;$("appPanel").hidden=false;
+ window.dispatchEvent(new Event("teko-owner-signin"));
  if(reportsEnabled){
   $("insightsPanel").hidden=false;
   $("ownerTabs").hidden=false;
@@ -58,6 +60,18 @@ async function call(action,fields={}){
  if(!response.ok)throw Error(data.error||"تعذر الاتصال بقاعدة الطلبات.");
  return data;
 }
+// Notification requests reuse the owner JWT, which stays inside this closure.
+window.TEKO_OWNER_NOTIFICATIONS_API=async(action,fields={})=>{
+ if(!["ownerFeed","ownerRead"].includes(action))throw Error("Invalid action");
+ if(!state.token||Date.now()>state.expiresAt)throw Error("Session expired");
+ const response=await fetch(project+"/functions/v1/teko-order-notifications",{
+  method:"POST",headers:{"Content-Type":"application/json","apikey":publicKey,"Authorization":"Bearer "+state.token},
+  body:JSON.stringify({action,...fields}),cache:"no-store"
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||"Notification service unavailable");
+ return data;
+};
 function td(text){
  const cell=document.createElement("td");
  cell.textContent=text==null?"":String(text);

@@ -28,6 +28,13 @@ jobs:
         run: |
           set -euo pipefail
           git pull --rebase origin main
+          # The owner can upload exactly one "معرض الصور.zip" (92 original PNGs)
+          # to the main branch using GitHub's file uploader. This job imports
+          # every PNG byte-for-byte and publishes the shared gallery catalog
+          # as part of the same auto-update release commit.
+          if [ -f 'معرض الصور.zip' ]; then
+            python3 scripts/import_gallery.py
+          fi
           export TEKO_SOURCE_REV="$(git rev-parse HEAD)"
           python3 - <<'PY'
           import datetime
@@ -73,7 +80,13 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html sw.js version.json
+          git add index.html sw.js version.json catalog/gallery.json
+          if [ -d assets/design-gallery ]; then
+            git add -A -- assets/design-gallery
+          fi
+          if git ls-files --error-unmatch 'معرض الصور.zip' >/dev/null 2>&1; then
+            git add -u -- 'معرض الصور.zip'
+          fi
           if git diff --cached --quiet; then
             echo 'No release marker changes.'
             exit 0

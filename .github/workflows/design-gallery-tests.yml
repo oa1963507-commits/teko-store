@@ -1,0 +1,40 @@
+name: TEKO public gallery checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'catalog/gallery.json'
+      - 'design-gallery.js'
+      - 'design-gallery.css'
+      - 'app.js'
+      - 'cart.js'
+      - 'index.html'
+      - 'tests/design-gallery.test.cjs'
+      - '.github/workflows/design-gallery-tests.yml'
+  pull_request:
+    paths:
+      - 'catalog/gallery.json'
+      - 'design-gallery.js'
+      - 'design-gallery.css'
+      - 'app.js'
+      - 'cart.js'
+      - 'index.html'
+      - 'tests/design-gallery.test.cjs'
+      - '.github/workflows/design-gallery-tests.yml'
+
+jobs:
+  gallery-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate JavaScript syntax
+        run: |
+          node --check app.js
+          node --check cart.js
+          node --check design-gallery.js
+      - name: Run public gallery regression tests
+        run: node --test tests/design-gallery.test.cjs

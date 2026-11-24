@@ -1,0 +1,30 @@
+name: TEKO OWNER persistent login regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'owner.js'
+      - 'owner-auth.js'
+      - 'owner.html'
+      - 'tests/owner-persistent-session.test.cjs'
+      - '.github/workflows/owner-auth-tests.yml'
+  pull_request:
+    paths:
+      - 'owner.js'
+      - 'owner-auth.js'
+      - 'owner.html'
+      - 'tests/owner-persistent-session.test.cjs'
+      - '.github/workflows/owner-auth-tests.yml'
+jobs:
+  owner-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and secure renewal checks
+        run: |
+          node --check owner.js
+          node --check owner-auth.js
+          node --test tests/owner-persistent-session.test.cjs

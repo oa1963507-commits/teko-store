@@ -1080,6 +1080,19 @@ async function uploadZipForSupabase(code,testingZip=null,orderOverride=null){
     !link.searchParams.get('token')){
   throw new Error('تم الرفع، لكن رابط التنزيل غير صالح. لا تُرسل الطلب قبل معالجة الخطأ.');
  }
+ // Register a private customer tracking key only after order registration.
+ // Notification service errors never prevent an already valid WhatsApp order.
+ if(ORDER_DB_REGISTRATION&&result.registered===true&&window.TEKO_CUSTOMER_NOTIFICATIONS){
+  try{
+   const tracked=await window.TEKO_CUSTOMER_NOTIFICATIONS.bind({
+    path:request.path,size:zip.size,expires:request.expires,
+    proof:request.proof,code
+   });
+   if(tracked)cloudMessage('✓ تم تسجيل الأوردر وتفعيل متابعته من صفحة «طلباتي».');
+  }catch{
+   cloudMessage('تم تسجيل الأوردر؛ إشعارات العميل غير متاحة حاليًا. أكمل على واتساب.');
+  }
+ }
  return link.toString();
 }
 async function uploadZipForOrder(code){
@@ -1148,7 +1161,7 @@ $('whatsappBtn').addEventListener('click',async()=>{
    cloudMessage('✓ تم الرفع وربط ملف الطلب بواتساب خلال '+Math.round((Date.now()-startedAt)/1000)+' ثانية.');
    if(tab&&!tab.closed)tab.location.replace(wa);
    else window.location.href=wa;
-   notify('تم رفع ZIP وإنشاء رابط تحميل حقيقي للمالك داخل رسالة واتساب.');
+   notify('تم تسجيل الطلب. تقدر تتابع حالته من «طلباتي» بعد إرسال رسالة واتساب.');
   }
  }catch(error){
   // On the production route only, honor the one-minute budget with an honest

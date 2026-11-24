@@ -1,5 +1,5 @@
 /* TEKO STORE auto-update service worker (network-first, no customer data cached).
-   TEKO_BUILD_REV: 02659ec375c3357ece3e732c5c35d2e01ed43537
+   TEKO_BUILD_REV: 47d68186ebb76c213cd743f3d7e227c099c18102
    This build marker is updated by the release workflow after every source push. */
 self.addEventListener("install",()=>{
   self.skipWaiting();

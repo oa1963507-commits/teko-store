@@ -1,0 +1,36 @@
+name: TEKO OWNER design and independent PWA checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'owner.html'
+      - 'owner-theme.css'
+      - 'owner-pwa.js'
+      - 'owner.webmanifest'
+      - 'tests/owner-pwa.test.cjs'
+      - '.github/workflows/owner-pwa-tests.yml'
+  pull_request:
+    paths:
+      - 'owner.html'
+      - 'owner-theme.css'
+      - 'owner-pwa.js'
+      - 'owner.webmanifest'
+      - 'tests/owner-pwa.test.cjs'
+      - '.github/workflows/owner-pwa-tests.yml'
+
+jobs:
+  owner-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify owner dashboard JavaScript
+        run: |
+          node --check owner.js
+          node --check owner-notifications.js
+          node --check owner-pwa.js
+      - name: Verify independent app manifest and responsive owner controls
+        run: node --test tests/owner-pwa.test.cjs

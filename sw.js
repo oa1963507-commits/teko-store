@@ -33,6 +33,18 @@ self.addEventListener("push",event=>{
   if(!p||p.data?.type!=="TEKO_OWNER_PUSH")return;
   const id=Number(p.data.id)||0;
   const body=String(p.body||"وصل إشعار جديد للمتجر").slice(0,150);
+  const unread=Math.max(0,Math.min(999,Number(p.data.unreadCount)||0));
+  // Set the installed PWA's home-screen badge where supported. Some Android
+  // launchers show a dot rather than a numeric badge (OS limitation).
+  try{
+   if(unread>0&&typeof self.registration.setAppBadge==="function")
+    await self.registration.setAppBadge(unread);
+   else if(unread===0&&typeof self.registration.clearAppBadge==="function")
+    await self.registration.clearAppBadge();
+   else if(unread>0&&typeof self.navigator?.setAppBadge==="function")
+    await self.navigator.setAppBadge(unread);
+  }catch{}
+
   // Badge is driven by the backend unread count, even while the PWA is closed.
   const badgeCount=Number(p.badgeCount);
   if(Number.isInteger(badgeCount)&&badgeCount>=0){

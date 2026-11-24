@@ -65,6 +65,9 @@ Deno.serve(async request=>{
   if(unreadError)throw Error("Owner badge count unavailable");
   const badgeCount=Math.max(0,Math.min(999,Number(unread)||0));
   const events=[...recent].reverse();
+  const {count:unreadCount,error:unreadError}=await db.from("teko_order_notifications")
+   .select("id",{head:true,count:"exact"}).is("owner_read_at",null);
+  if(unreadError)throw Error("Unread badge count unavailable");
   const {data:receipts,error:receiptErr}=await db.from("teko_owner_push_deliveries")
    .select("subscription_id,event_id,attempts,delivered_at")
    .in("event_id",events.map(e=>e.id))
@@ -97,7 +100,8 @@ Deno.serve(async request=>{
        tag:"teko-owner-"+event.id,
        badgeCount, // Used by the service worker's native app icon badge.
        silent:sub.sound_enabled===false,
-       data:{type:"TEKO_OWNER_PUSH",id:event.id,body:message,url:"/owner.html"}},
+       data:{type:"TEKO_OWNER_PUSH",id:event.id,body:message,
+        unreadCount:unreadCount||0,url:"/owner.html"}},
       {publicKey:config.vapid_public,privateKey:config.vapid_private,
        subject:"https://teko-store.pages.dev/"}
      );

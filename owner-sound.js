@@ -33,7 +33,8 @@
   return context;
  }
  function chime(){
-  if(!enabled||!authorized||!context||context.state!=="running")return false;
+  if(!enabled||!authorized||!context||context.state!=="running"||
+    (document.visibilityState&&document.visibilityState!=="visible"))return false;
   try{
    const now=context.currentTime;
    const osc=context.createOscillator(),gain=context.createGain();

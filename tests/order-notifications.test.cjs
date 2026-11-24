@@ -27,7 +27,7 @@ test("Both customer and owner notifications have dedicated interfaces",()=>{
   [ownerHtml,"ownerNotificationReadAll"]
  ])assert.ok(html.includes('id="'+id+'"'),id);
  assert.ok(index.includes('src="customer-notifications.js?v=50"'));
- assert.ok(ownerHtml.includes('src="owner-notifications.js?v=50"'));
+ assert.ok(ownerHtml.includes('src="owner-notifications.js?v=52"'));
  assert.ok(index.includes('src="app.js?v=50"'));
 });
 test("All six order statuses remain represented and no status checks are removed",()=>{

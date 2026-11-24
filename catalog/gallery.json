@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "note": "Public TEKO gallery. Four existing starter typography designs; graphic/photo assets will be added when approved by the owner. Use assets/design-gallery/ for future PNG/WebP images.",
+  "items": [
+    {
+      "id": "g1",
+      "title": "TEKO BOLD",
+      "category": "عبارات",
+      "kind": "text",
+      "text": "TEKO",
+      "font": "Impact",
+      "color": "#ffffff",
+      "featured": true
+    },
+    {
+      "id": "g2",
+      "title": "STREET ENERGY",
+      "category": "عبارات",
+      "kind": "text",
+      "text": "STREET",
+      "font": "Impact",
+      "color": "#ffffff",
+      "featured": false
+    },
+    {
+      "id": "g3",
+      "title": "YOUR STYLE",
+      "category": "عبارات",
+      "kind": "text",
+      "text": "YOUR STYLE",
+      "font": "Impact",
+      "color": "#ffffff",
+      "featured": false
+    },
+    {
+      "id": "g4",
+      "title": "NO LIMITS",
+      "category": "عبارات",
+      "kind": "text",
+      "text": "NO LIMITS",
+      "font": "Impact",
+      "color": "#ffffff",
+      "featured": false
+    }
+  ]
+}

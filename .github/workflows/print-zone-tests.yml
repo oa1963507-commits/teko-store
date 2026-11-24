@@ -1,0 +1,28 @@
+name: TEKO additional print-zone regression checks
+
+on:
+  push:
+    branches:
+      - feature/additional-print-zones
+  pull_request:
+    paths:
+      - 'additional-print-zones.*'
+      - 'app.js'
+      - 'index.html'
+      - 'tests/additional-print-zones.test.cjs'
+      - '.github/workflows/print-zone-tests.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check editor and zone JavaScript
+        run: |
+          node --check app.js
+          node --check additional-print-zones.js
+      - name: Verify new zones and unchanged legacy restrictions
+        run: node --test tests/additional-print-zones.test.cjs

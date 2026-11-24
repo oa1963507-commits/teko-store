@@ -108,7 +108,7 @@ Deno.serve(async request=>{
      const status=Number((error as {statusCode?:number})?.statusCode)||0;
      const safeType=error instanceof Error?error.name:"UnknownPushError";
      const safeMessage=(error instanceof Error?error.message:"failed")
-      .replace(/https?:\\/\\/\\S+/g,"[push-url]").slice(0,180);
+      .replace(/https?:\/\/\S+/g,"[push-url]").slice(0,180);
      console.warn("TEKO owner push failed",status,safeType,safeMessage);
      if(status===404||status===410){
       await db.from("teko_owner_push_subscriptions").delete().eq("id",sub.id);

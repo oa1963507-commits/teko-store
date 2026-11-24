@@ -96,9 +96,36 @@ test("Production blocking logic still rejects mixed illegal prints",()=>{
 });
 test("New visual guide stays optional and cannot change export files",()=>{
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
- const idxNew=html.indexOf('<script src="additional-print-zones.js?v=46">');
- const idxEditor=html.indexOf('<script src="app.js?v=46">');
+ const idxNew=html.indexOf('<script src="additional-print-zones.js?v=47">');
+ const idxEditor=html.indexOf('<script src="app.js?v=47">');
  assert.ok(idxNew>0&&idxEditor>idxNew,"Zone module must run before editor");
  assert.match(html,/id="additionalPrintZonesBtn"/);
  assert.match(code,/showTools&&showAdditionalZoneGuides/);
+});
+
+test("Uploaded screenshot 1: centered medium logo fits back hood",()=>{
+ const api=editor();
+ // Approximate source screenshot normalized canvas dimensions (1122×1402).
+ // Source image includes a selected square logo x=.417-.583, y=.109-.242.
+ const sample={view:"back",x:.417,y:.109,w:.166/api.scaleW(),
+  h:.133/(api.scaleW()*(1122/1402))};
+ assert.equal(ext.match("back",api.getBounds(sample))?.id,"back-hood-outer");
+ assert.deepEqual(api.violations(sample),[]);
+});
+test("Uploaded screenshot 2: logo spanning hood and back remains invalid",()=>{
+ const api=editor();
+ const sample={view:"back",x:.418,y:.258,w:.166/api.scaleW(),
+  h:.132/(api.scaleW()*(1122/1402))};
+ assert.ok(api.violations(sample).some(i=>i.label.includes("عابر بين قماش الكابيشو والظهر")));
+});
+test("Moving screenshot 2 artwork completely below hood is permitted",()=>{
+ const api=editor();
+ const sample={view:"back",x:.418,y:.303,w:.166/api.scaleW(),
+  h:.132/(api.scaleW()*(1122/1402))};
+ assert.equal(ext.match("back",api.getBounds(sample))?.id,"back-upper-yoke");
+ assert.deepEqual(api.violations(sample),[]);
+});
+test("Error box focuses rejected artwork, not the former whole hood ban",()=>{
+ assert.match(code,/bounds:getBounds\(d\),issue:violations\(d\)\[0\]/);
+ assert.doesNotMatch(code,/currentErrors=showTools\?designs\.filter\(d=>d\.view===view\)\.flatMap\(d=>violations\(d\)\)/);
 });

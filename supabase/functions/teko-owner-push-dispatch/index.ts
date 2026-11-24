@@ -3,7 +3,80 @@
  * No public access. No owner/customer keys are ever sent to a browser.
  */
 import {createClient} from "npm:@supabase/supabase-js@2";
-import {sendPushNotification} from "npm:@mmmike/web-push@0.1.0/send";
+
+// Self-contained RFC 8291/8292 encrypted Web Push sender, following the
+// already-working KOKO push implementation. No external web-push package import.
+type DevicePush={endpoint:string;keys:{p256dh:string;auth:string}};
+type ServerKeys={publicKey:string;privateKey:string;subject:string};
+const te=new TextEncoder();
+function joinBytes(...parts:Uint8Array[]):Uint8Array {
+ const out=new Uint8Array(parts.reduce((sum,p)=>sum+p.length,0));
+ let offset=0;for(const part of parts){out.set(part,offset);offset+=part.length;}
+ return out;
+}
+function fromB64(v:string):Uint8Array {
+ const clean=v.replace(/-/g,"+").replace(/_/g,"/");
+ return Uint8Array.from(atob(clean.padEnd(Math.ceil(clean.length/4)*4,"=")),c=>c.charCodeAt(0));
+}
+function toB64(bytes:Uint8Array):string {
+ let s="";for(const b of bytes)s+=String.fromCharCode(b);
+ return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+async function hkdf(ikm:Uint8Array,salt:Uint8Array,info:Uint8Array,length:number):Promise<Uint8Array>{
+ const key=await crypto.subtle.importKey("raw",ikm,"HKDF",false,["deriveBits"]);
+ return new Uint8Array(await crypto.subtle.deriveBits({name:"HKDF",hash:"SHA-256",salt,info},key,length*8));
+}
+async function sealedPayload(device:DevicePush,data:Record<string,unknown>):Promise<Uint8Array>{
+ const receiver=fromB64(device.keys.p256dh),auth=fromB64(device.keys.auth);
+ if(receiver.length!==65||auth.length!==16)throw Error("Invalid device push key");
+ const receiverKey=await crypto.subtle.importKey("raw",receiver,{name:"ECDH",namedCurve:"P-256"},false,[]);
+ const senderPair=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
+ const senderPublic=new Uint8Array(await crypto.subtle.exportKey("raw",senderPair.publicKey));
+ const shared=new Uint8Array(await crypto.subtle.deriveBits({name:"ECDH",public:receiverKey},senderPair.privateKey,256));
+ const prk=await hkdf(shared,auth,joinBytes(te.encode("WebPush: info"),new Uint8Array([0]),receiver,senderPublic),32);
+ const salt=crypto.getRandomValues(new Uint8Array(16));
+ const key=await hkdf(prk,salt,te.encode("Content-Encoding: aes128gcm\0"),16);
+ const nonce=await hkdf(prk,salt,te.encode("Content-Encoding: nonce\0"),12);
+ const cipher=new Uint8Array(await crypto.subtle.encrypt(
+  {name:"AES-GCM",iv:nonce},await crypto.subtle.importKey("raw",key,{name:"AES-GCM"},false,["encrypt"]),
+  joinBytes(te.encode(JSON.stringify(data)),new Uint8Array([2]))));
+ // salt(16), record size(4096), sender key length(65), sender key, ciphertext.
+ return joinBytes(salt,new Uint8Array([0,0,16,0,65]),senderPublic,cipher);
+}
+async function vapidHeader(keys:ServerKeys,url:string):Promise<string>{
+ const publicBytes=fromB64(keys.publicKey);
+ if(publicBytes.length!==65||publicBytes[0]!==4||fromB64(keys.privateKey).length!==32)
+  throw Error("Invalid owner VAPID keys");
+ const x=toB64(publicBytes.slice(1,33)),y=toB64(publicBytes.slice(33,65));
+ const privateJwk:JsonWebKey={kty:"EC",crv:"P-256",x,y,d:keys.privateKey,ext:true,key_ops:["sign"]};
+ const key=await crypto.subtle.importKey("jwk",privateJwk,{name:"ECDSA",namedCurve:"P-256"},false,["sign"]);
+ const enc=(value:Record<string,unknown>):string=>toB64(te.encode(JSON.stringify(value)));
+ const now=Math.floor(Date.now()/1000);
+ const token=enc({typ:"JWT",alg:"ES256"})+"."+enc({
+  aud:new URL(url).origin,exp:now+3600,sub:keys.subject});
+ const signature=new Uint8Array(await crypto.subtle.sign(
+  {name:"ECDSA",hash:"SHA-256"},key,te.encode(token)));
+ return "vapid t="+token+"."+toB64(signature)+", k="+keys.publicKey;
+}
+async function sendNativePush(device:DevicePush,payload:Record<string,unknown>,keys:ServerKeys):Promise<boolean>{
+ const bytes=await sealedPayload(device,payload);
+ const authorization=await vapidHeader(keys,device.endpoint);
+ const response=await fetch(device.endpoint,{
+  method:"POST",
+  headers:{"content-type":"application/octet-stream",
+   "content-encoding":"aes128gcm",
+   "authorization":authorization,
+   "ttl":"86400",
+   "urgency":"high"},
+  body:bytes
+ });
+ if(!response.ok){
+  const error=new Error("Push service HTTP "+response.status) as Error & {statusCode:number};
+  error.statusCode=response.status;throw error;
+ }
+ return true;
+}
+
 
 const ALLOWED = (endpoint:string):boolean => {
  try {
@@ -65,9 +138,7 @@ Deno.serve(async request=>{
   if(unreadError)throw Error("Owner badge count unavailable");
   const badgeCount=Math.max(0,Math.min(999,Number(unread)||0));
   const events=[...recent].reverse();
-  const {count:unreadCount,error:unreadError}=await db.from("teko_order_notifications")
-   .select("id",{head:true,count:"exact"}).is("owner_read_at",null);
-  if(unreadError)throw Error("Unread badge count unavailable");
+  const unreadCount=unread;
   const {data:receipts,error:receiptErr}=await db.from("teko_owner_push_deliveries")
    .select("subscription_id,event_id,attempts,delivered_at")
    .in("event_id",events.map(e=>e.id))
@@ -92,7 +163,7 @@ Deno.serve(async request=>{
      const message=event.event_type==="new"?
       "طلب جديد "+event.order_code:
       "تحديث "+event.order_code+": "+(labels[event.status]||"تم تحديث الطلب");
-     const result=await sendPushNotification(
+     const result=await sendNativePush(
       {endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
       {title:"TEKO OWNER — إشعار جديد",body:message,
        icon:"https://teko-store.pages.dev/icons/icon-192.png",

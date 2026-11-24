@@ -116,16 +116,28 @@
   if(!(/\.mp3$/i.test(file.name)||file.type==="audio/mpeg")||file.size>8*1024*1024||!file.size){
    note("اختار ملف MP3 صالح بحجم أقل من 8 ميجابايت.");fileInput.value="";return;
   }
+  // Preview on the real file-selection gesture before asynchronous storage.
+  setSource(URL.createObjectURL(file),true);
+  void play(true);
   try{
    await saveFile(file);
-   setSource(URL.createObjectURL(file),true);
-   note("✓ تم حفظ الصافرة على الجهاز ده. اضغط «تجربة الصوت» للتأكد من تشغيلها.");
   }catch{
-   note("تعذر حفظ الصافرة على الجهاز. تأكد أن مساحة المتصفح متاحة وجرّب مرة أخرى.");
+   note("الصوت متاح للتجربة الآن، لكن تعذر حفظه؛ ستحتاج لاختياره بعد فتح التطبيق من جديد.");
   }
   fileInput.value="";
  });
- test.addEventListener("click",()=>void play(true));
+ test.addEventListener("click",()=>{
+  if(!loggedIn){note("سجّل الدخول بحساب المالك أولًا.");return;}
+  if(!enabled){note("فعّل زر صوت التنبيه أولًا.");return;}
+  // No bundled MP3 exists; directly ask for the owner's actual whistle file.
+  // fileInput.click must run synchronously inside the genuine user click.
+  if(!sourceReady){
+   note("اختار ملف «رسالة-صافرة» MP3 الأصلي للتجربة والحفظ على الجهاز ده.");
+   fileInput.click();
+   return;
+  }
+  void play(true);
+ });
  toggle.addEventListener("click",()=>{
   enabled=!enabled;
   try{localStorage.setItem(KEY,enabled?"1":"0")}catch{}

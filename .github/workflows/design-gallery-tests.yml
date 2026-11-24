@@ -11,6 +11,8 @@ on:
       - 'cart.js'
       - 'index.html'
       - 'tests/design-gallery.test.cjs'
+      - 'scripts/import_gallery.py'
+      - 'tests/test_gallery_import.py'
       - '.github/workflows/design-gallery-tests.yml'
   pull_request:
     paths:
@@ -21,6 +23,8 @@ on:
       - 'cart.js'
       - 'index.html'
       - 'tests/design-gallery.test.cjs'
+      - 'scripts/import_gallery.py'
+      - 'tests/test_gallery_import.py'
       - '.github/workflows/design-gallery-tests.yml'
 
 jobs:
@@ -38,3 +42,5 @@ jobs:
           node --check design-gallery.js
       - name: Run public gallery regression tests
         run: node --test tests/design-gallery.test.cjs
+      - name: Test uploaded-archive importer without changing PNG bytes
+        run: python3 -m unittest discover -s tests -p 'test_gallery_import.py' -v

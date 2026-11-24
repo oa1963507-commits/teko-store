@@ -129,6 +129,34 @@
   panel.hidden=true;opened=false;bell.setAttribute("aria-expanded","false");
  });
  $("ownerNotificationRefresh").addEventListener("click",()=>void poll());
+ $("ownerNotificationSystemTest")?.addEventListener("click",async()=>{
+  if(!authorized){message.textContent="سجّل الدخول للمالك أولًا.";return;}
+  if(!window.isSecureContext||!("Notification" in window)||!("serviceWorker" in navigator)){
+   message.textContent="المتصفح الحالي لا يدعم اختبار إشعارات الخلفية.";return;
+  }
+  try{
+   if(Notification.permission!=="granted"){
+    const allowed=await Notification.requestPermission();
+    if(allowed!=="granted"){
+     message.textContent="فعّل إذن الإشعارات للموقع من إعدادات الموبايل أولًا.";return;
+    }
+   }
+   const registration=await navigator.serviceWorker.ready;
+   await registration.showNotification("TEKO OWNER — اختبار إشعار الموبايل",{
+    body:"اختبار صوت إشعارات الطلبات. إذا ظهر التنبيه بدون صوت، فعّل صوت إشعارات TEKO OWNER من إعدادات أندرويد.",
+    tag:"teko-owner-system-test-"+Date.now(),
+    icon:"./icons/icon-192.png",
+    badge:"./icons/icon-192.png",
+    silent:false,
+    renotify:true,
+    vibrate:[220,100,220,100,300],
+    data:{type:"TEKO_OWNER_TEST",url:"./owner.html"}
+   });
+   message.textContent="تم إرسال تنبيه اختبار إلى الموبايل. لو ظهر صامتًا، فعّل الصوت لقناة إشعارات TEKO OWNER من إعدادات الهاتف.";
+  }catch(err){
+   message.textContent="تعذر اختبار صوت إشعار الموبايل: "+(err?.message||"راجع إعدادات الإشعارات");
+  }
+ });
  $("ownerNotificationReadAll").addEventListener("click",async()=>{
   const ids=Array.from(list.querySelectorAll(".owner-notification-item.unread"))
    .map(x=>Number(x.dataset.id)).filter(Number.isSafeInteger);

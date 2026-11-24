@@ -53,11 +53,13 @@
  toggle.addEventListener("click",async()=>{
   if(enabled){
    enabled=false;try{localStorage.setItem(KEY,"0")}catch{}
+   window.dispatchEvent(new CustomEvent("teko-owner-sound-change",{detail:{enabled:false}}));
    setStatus("تم كتم نفس الرنّة لكل الإشعارات.");paint();return;
   }
   try{
    await unlock();
    enabled=true;try{localStorage.setItem(KEY,"1")}catch{}
+   window.dispatchEvent(new CustomEvent("teko-owner-sound-change",{detail:{enabled:true}}));
    setStatus("الصوت شغّال: نفس الرنّة لكل أوردر جديد أو تغيير حالة. اضغط «تجربة الصوت».");
   }catch(e){
    enabled=false;setStatus(e?.message||"الصوت غير متاح على الجهاز");

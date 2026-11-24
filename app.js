@@ -126,8 +126,13 @@ function violations(d){
  // Approved extra islands override ONLY their named former restriction.
  // Legacy torso/sleeve surfaces and all other stitch restrictions are preserved.
  const extraZone=window.TEKO_EXTRA_PRINT?.match(d.view,b)||null;
- const result=areas[d.view].filter(zone=>overlaps(b,zone)&&
-   !(extraZone&&extraZone.unblocks.includes(zone.label)));
+ const crossesHoodAndBack=d.view==='back'&&
+   b.y<areas.back[0].y+areas.back[0].h&&b.y+b.h>.294&&
+   overlaps(b,areas.back[0]);
+ const result=crossesHoodAndBack?
+   [{...b,label:'التصميم عابر بين قماش الكابيشو والظهر؛ انقله بالكامل لإحدى المنطقتين أو صغّره'}]:[];
+ result.push(...areas[d.view].filter(zone=>overlaps(b,zone)&&
+   !(extraZone&&extraZone.unblocks.includes(zone.label))));
  if(!onPrintablePart(b,d.view)&&!extraZone)result.push({...b,label:'خارج القماش أو مساحة الطباعة المتاحة'});
  if(d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)result.push({...b,label:'تجاوز مقاس الطباعة 40 × 60 سم'});
  return result;
@@ -263,16 +268,17 @@ function renderZones(){
   }
   container.appendChild(svg);
  }
- const currentErrors=showTools?designs.filter(d=>d.view===view).flatMap(d=>violations(d)):[];
- const unique=new Set();
- for(const zone of currentErrors){
-  const key=[zone.x,zone.y,zone.w,zone.h].map(v=>v.toFixed(3)).join('/');
-  if(unique.has(key))continue;unique.add(key);
+ // Show the exact artwork that needs moving/resizing, not the entire old
+ // prohibited zone (which made a large red rectangle obscure the hood).
+ const currentErrors=showTools?designs.filter(d=>d.view===view)
+   .map(d=>({bounds:getBounds(d),issue:violations(d)[0]}))
+   .filter(item=>item.issue):[];
+ for(const {bounds,issue} of currentErrors){
   const box=document.createElement('div');
   box.className='invalid-outline';
-  box.title=zone.label;
-  box.style.left=(zone.x*100)+'%';box.style.top=(zone.y*100)+'%';
-  box.style.width=(zone.w*100)+'%';box.style.height=(zone.h*100)+'%';
+  box.title=issue.label;
+  box.style.left=(bounds.x*100)+'%';box.style.top=(bounds.y*100)+'%';
+  box.style.width=(bounds.w*100)+'%';box.style.height=(bounds.h*100)+'%';
   container.appendChild(box);
  }
  const invalidDesign=designs.find(d=>violations(d).length);

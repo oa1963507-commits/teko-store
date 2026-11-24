@@ -123,8 +123,12 @@ function onPrintablePart(b,targetView){
 }
 function violations(d){
  const b=getBounds(d);
- const result=areas[d.view].filter(zone=>overlaps(b,zone));
- if(!onPrintablePart(b,d.view))result.push({...b,label:'خارج القماش أو مساحة الطباعة المتاحة'});
+ // Approved extra islands override ONLY their named former restriction.
+ // Legacy torso/sleeve surfaces and all other stitch restrictions are preserved.
+ const extraZone=window.TEKO_EXTRA_PRINT?.match(d.view,b)||null;
+ const result=areas[d.view].filter(zone=>overlaps(b,zone)&&
+   !(extraZone&&extraZone.unblocks.includes(zone.label)));
+ if(!onPrintablePart(b,d.view)&&!extraZone)result.push({...b,label:'خارج القماش أو مساحة الطباعة المتاحة'});
  if(d.w>PRINT_LIMITS.width+.001||d.h>PRINT_LIMITS.height+.001)result.push({...b,label:'تجاوز مقاس الطباعة 40 × 60 سم'});
  return result;
 }
@@ -239,8 +243,26 @@ function renderDesigns(){
  });
  renderZones();renderEditTools();renderQuickDock();scheduleInk();
 }
+let showAdditionalZoneGuides=false;
 function renderZones(){
  const container=$('zones');container.innerHTML='';container.style.pointerEvents='none';
+ if(showTools&&showAdditionalZoneGuides&&window.TEKO_EXTRA_PRINT){
+  const svgNS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(svgNS,'svg');
+  svg.classList.add('additional-zone-guides');
+  svg.setAttribute('viewBox','0 0 1000 1000');
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.setAttribute('aria-hidden','true');
+  for(const zone of (window.TEKO_EXTRA_PRINT.zones[view]||[])){
+   const polygon=document.createElementNS(svgNS,'polygon');
+   polygon.setAttribute('points',zone.polygon.map(([x,y])=>(x*1000)+','+(y*1000)).join(' '));
+   const title=document.createElementNS(svgNS,'title');
+   title.textContent=zone.label;
+   polygon.appendChild(title);
+   svg.appendChild(polygon);
+  }
+  container.appendChild(svg);
+ }
  const currentErrors=showTools?designs.filter(d=>d.view===view).flatMap(d=>violations(d)):[];
  const unique=new Set();
  for(const zone of currentErrors){
@@ -261,10 +283,16 @@ function renderZones(){
   validation.textContent='⚠ '+VIEW_NAMES[invalidDesign.view]+' — '+issue.label+'. حرّك التصميم أو صغّره حتى يختفي الخط الأحمر، وبعدها تقدر تكمل الطلب.';
  }else{
   validation.className='notice';
-  validation.textContent='اختار أي زاوية واسحب التصميم على القماش، بما في ذلك الأكمام. الجيب والخياطة والأطراف ممنوع الطباعة عليها؛ وقت التعارض يظهر خط أحمر.';
+  validation.textContent='اسحب التصميم على المساحات المعتادة أو المناطق الخمس الجديدة بالكابيشو والصدر والجيب الأمامي وأعلى الظهر. الخياطة والأطراف خارج المناطق المحددة تظل ممنوعة؛ وقت التعارض يظهر خط أحمر.';
  }
  $('whatsappBtn').disabled=$('downloadBtn').disabled=Boolean(invalidDesign);
 }
+$('additionalPrintZonesBtn')?.addEventListener('click',()=>{
+ showAdditionalZoneGuides=!showAdditionalZoneGuides;
+ $('additionalPrintZonesBtn').setAttribute('aria-pressed',String(showAdditionalZoneGuides));
+ $('additionalPrintZonesBtn').textContent=showAdditionalZoneGuides?'إخفاء المناطق الجديدة':'إظهار المناطق الجديدة';
+ renderZones();
+});
 function renderEditTools(){
  const d=current(),selected=!!d,textSelected=!!d&&d.kind==='text';
  $('editTools').style.opacity=selected?'1':'.5';

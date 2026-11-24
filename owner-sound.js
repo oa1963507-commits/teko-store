@@ -1,92 +1,84 @@
-/* TEKO OWNER V52 — ONE ORIGINAL CHIME for every owner alert.
- * Synthesizes the same 650 Hz chime; does not load/ship any music.
- * Audio plays only after the owner's explicit click unlocks AudioContext.
- * Background notifications use the OS-provided sound, not custom playback.
+/* TEKO OWNER V55 — the owner's exact uploaded whistle sound.
+ * Foreground: plays the supplied MP3 after browser audio has been enabled.
+ * Background/closed app: OS notification audio rules apply.
+ * No different tones for order vs status-change notifications.
  */
 (()=>{
  "use strict";
  const $=id=>document.getElementById(id);
- const toggle=$("ownerSoundToggle"),tryButton=$("ownerSoundTest");
- if(!toggle||!tryButton)return;
- const KEY="teko_owner_sound_v1";
- let enabled=false,authorized=false,context=null;
- const handled=new Set();
- const backlog=[];
- function remember(id){
-  const key=String(id??"");
-  if(!key)return true;
-  if(handled.has(key))return false;
-  handled.add(key);backlog.push(key);
-  if(backlog.length>120)handled.delete(backlog.shift());
-  return true;
+ const toggle=$("ownerSoundToggle"),test=$("ownerSoundTest"),status=$("ownerSoundStatus");
+ if(!toggle||!test)return;
+ const KEY="teko_owner_sound_v1",URL="./assets/notifications/teko-owner-alert.mp3";
+ const IDS=new Set(),FIFO=[];
+ let enabled=true,loggedIn=false,ready=false,playing=false;
+ try{enabled=localStorage.getItem(KEY)!=="0"}catch{}
+ let player;
+ function audio(){
+  if(!player){
+   player=new Audio(URL);
+   player.preload="auto";
+   player.volume=1;
+  }
+  return player;
  }
- const paint=()=>{
+ function note(value){if(status)status.textContent=value;}
+ function paint(){
   toggle.setAttribute("aria-pressed",String(enabled));
   toggle.textContent=enabled?"🔊 صوت التنبيه: شغّال":"🔇 صوت التنبيه: مكتوم";
-  tryButton.disabled=!enabled;
- };
- async function unlock(){
-  const Constructor=window.AudioContext||window.webkitAudioContext;
-  if(!Constructor)throw Error("المتصفح لا يدعم تشغيل صوت التنبيه");
-  if(!context||context.state==="closed")context=new Constructor();
-  if(context.state!=="running")await context.resume();
-  return context;
+  test.disabled=!enabled;
  }
- function chime(){
-  if(!enabled||!authorized||!context||context.state!=="running"||
-    (document.visibilityState&&document.visibilityState!=="visible"))return false;
+ function remember(id){
+  if(id===null||id===undefined)return true;
+  const key=String(id);
+  if(IDS.has(key))return false;
+  IDS.add(key);FIFO.push(key);
+  if(FIFO.length>150)IDS.delete(FIFO.shift());
+  return true;
+ }
+ async function whistle(testRun=false){
+  if(!loggedIn||!enabled||(!testRun&&document.visibilityState!=="visible"))return false;
   try{
-   const now=context.currentTime;
-   const osc=context.createOscillator(),gain=context.createGain();
-   osc.type="sine";osc.frequency.setValueAtTime(650,now);
-   gain.gain.setValueAtTime(0.0001,now);
-   gain.gain.exponentialRampToValueAtTime(0.24,now+0.025);
-   gain.gain.exponentialRampToValueAtTime(0.0001,now+0.40);
-   osc.connect(gain);gain.connect(context.destination);
-   osc.start(now);osc.stop(now+0.42);
-   osc.onended=()=>{try{osc.disconnect();gain.disconnect()}catch{}};
+   const p=audio();
+   // A single audio source, restarted on each distinct notification.
+   p.pause();p.currentTime=0;
+   const playback=p.play();
+   if(playback&&typeof playback.then==="function")await playback;
+   ready=true;
+   if(testRun)note("✓ ده نفس صوت «رسالة-صافرة» المعتمد لكل إشعارات TEKO OWNER.");
    return true;
-  }catch{return false;}
- }
- function setStatus(value){
-  const el=$("ownerSoundStatus");if(el)el.textContent=value;
+  }catch(err){
+   ready=false;
+   note("المتصفح منع تشغيل الصوت تلقائيًا. اضغط «تجربة الصوت» مرة لتفعيله، وتأكد إن صوت الجهاز مش مكتوم.");
+   return false;
+  }
  }
  toggle.addEventListener("click",async()=>{
-  if(enabled){
-   enabled=false;try{localStorage.setItem(KEY,"0")}catch{}
-   window.dispatchEvent(new CustomEvent("teko-owner-sound-change",{detail:{enabled:false}}));
-   setStatus("تم كتم نفس الرنّة لكل الإشعارات.");paint();return;
-  }
-  try{
-   await unlock();
-   enabled=true;try{localStorage.setItem(KEY,"1")}catch{}
-   window.dispatchEvent(new CustomEvent("teko-owner-sound-change",{detail:{enabled:true}}));
-   setStatus("الصوت شغّال: نفس الرنّة لكل أوردر جديد أو تغيير حالة. اضغط «تجربة الصوت».");
-  }catch(e){
-   enabled=false;setStatus(e?.message||"الصوت غير متاح على الجهاز");
-  }
+  enabled=!enabled;
+  try{localStorage.setItem(KEY,enabled?"1":"0")}catch{}
   paint();
+  window.dispatchEvent(new CustomEvent("teko-owner-sound-change",{detail:{enabled}}));
+  if(enabled){
+   note("الصوت موحّد لكل الأوردرات والتحديثات. اضغط «تجربة الصوت» لتفعيله في المتصفح.");
+   await whistle(true);
+  }else{
+   if(player){player.pause();player.currentTime=0}
+   note("تم كتم جميع إشعارات TEKO OWNER على الجهاز ده.");
+  }
  });
- tryButton.addEventListener("click",async()=>{
-  try{await unlock();if(!chime())setStatus("سجّل دخول المالك أولًا لتجربة الصوت.")}
-  catch{setStatus("المتصفح منع تشغيل الصوت؛ اضغط زر التشغيل مجددًا.");}
- });
+ test.addEventListener("click",()=>void whistle(true));
  window.addEventListener("teko-owner-alert-event",event=>{
-  if(!authorized)return;
-  if(!remember(event.detail?.id))return; // No double chime on push + 20-second polling
-  chime();
+  if(!loggedIn||!enabled||!remember(event.detail?.id))return;
+  void whistle(false);
  });
  window.addEventListener("teko-owner-signin",()=>{
-  authorized=true;
-  // After reload, browser autoplay restrictions may require one new tap.
-  try{enabled=localStorage.getItem(KEY)==="1"}catch{}
-  paint();
-  if(enabled&&(!context||context.state!=="running"))
-   setStatus("الصوت مفعّل. لو مش سامعه، اضغط «تجربة الصوت» مرة لتفعيل الصوت في المتصفح.");
+  loggedIn=true;paint();
+  note(enabled?
+   "صوت «رسالة-صافرة» جاهز. لو مش سامعه اضغط «تجربة الصوت» لتفعيل تشغيله.":
+   "الصوت مكتوم. اضغط زر «صوت التنبيه» لتشغيله.");
  });
  window.addEventListener("teko-owner-signout",()=>{
-  authorized=false;handled.clear();backlog.length=0;
+  loggedIn=false;IDS.clear();FIFO.length=0;
+  if(player){player.pause();player.currentTime=0}
  });
- // Do not unlock playback automatically: permission must result from a real tap.
  paint();
 })();

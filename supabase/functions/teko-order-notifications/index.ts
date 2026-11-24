@@ -199,7 +199,7 @@ Deno.serve(async req=>{
         return reply(origin,{error:"Maximum 12 owner devices"},409);
       const {error:saveError}=await db.from("teko_owner_push_subscriptions")
        .upsert({endpoint,p256dh:keys.p256dh,auth:keys.auth,
-         updated_at:new Date().toISOString()},{onConflict:"endpoint"});
+         updated_at:new Date().toISOString(),sound_enabled:data.soundEnabled!==false},{onConflict:"endpoint"});
       if(saveError)throw Error("Push device save failed");
       return reply(origin,{ok:true,subscribed:true,publicKey});
     }

@@ -89,6 +89,7 @@ test("Owner Push is owner-verified, retries are bounded, and mute uses one prefe
  assert.ok(push.includes('request("ownerPushSubscribe"'));
  assert.ok(push.includes("userVisibleOnly:true"));
  assert.ok(push.includes("teko-owner-sound-change"));
+ assert.ok(push.includes('localStorage.getItem("teko_owner_sound_v1")!=="0"'),"Push notification sound must be ON unless explicitly muted");
  assert.ok(api.includes('if(!await authorizedOwner(req,db))'));
  assert.ok(dispatcher.includes("x-teko-push-secret"));
  assert.ok(dispatcher.includes("teko_owner_push_deliveries"));

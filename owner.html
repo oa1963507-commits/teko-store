@@ -182,6 +182,9 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
       <button type="button" id="ownerNotificationPermission">🔔 تفعيل إشعارات الموبايل</button>
       <button type="button" id="ownerSoundToggle" aria-pressed="false">🔇 صوت التنبيه: مكتوم</button>
       <button type="button" id="ownerSoundTest">▶ تجربة الصوت الواحد</button>
+      <button type="button" id="ownerSoundUpload">🎵 اختيار ملف الصافرة MP3</button>
+      <input type="file" id="ownerSoundFile" accept=".mp3,audio/mpeg" hidden>
+
     </div>
     <div id="ownerNotificationMessage" role="status" aria-live="polite"></div>
     <div id="ownerSoundStatus" role="status" aria-live="polite">صوت «رسالة-صافرة» لكل إشعار عند فتح التطبيق؛ خارج التطبيق يُستخدم صوت إشعارات الموبايل.</div>
@@ -336,7 +339,7 @@ a.contact-link{color:#ae1d3b;text-decoration:underline}
 <script src="owner-auth.js?v=54"></script>
 <script src="owner.js?v=54"></script>
 <script src="owner-notifications.js?v=55"></script>
-<script src="owner-sound.js?v=55"></script>
+<script src="owner-sound.js?v=56"></script>
 <script src="owner-push.js?v=52"></script>
 <div class="owner-install-modal" id="ownerInstallHelp" hidden>
  <section class="owner-install-modal__card" role="dialog" aria-modal="true" aria-labelledby="ownerInstallHelpTitle" aria-describedby="ownerInstallDescription" tabindex="-1">

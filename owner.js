@@ -497,7 +497,11 @@ $("loginForm").addEventListener("submit",async event=>{
   // Never persist a login until the backend verifies the user is the store owner.
   await call("list",{page:0,status:"all",search:""});
   auth.confirmOwner();
-  showApp();await list();
+  showApp();
+  try{await list();}catch(error){
+   // The owner was verified: a transient list timeout must not log them out.
+   tell("تم تسجيل الدخول، لكن تحديث الطلبات تعذر مؤقتًا: "+error.message);
+  }
  }catch(error){showLogin("تعذر فتح لوحة المالك: "+error.message);}
  finally{btn.disabled=false;}
 });
@@ -553,7 +557,10 @@ async function restoreOwner(){
   state.token=await auth.getToken();
   // The backend must verify owner UID again before showing saved private data.
   await call("list",{page:0,status:"all",search:""});
-  showApp();await list();
+  showApp();
+  try{await list();}catch(error){
+   tell("الجلسة مستمرة، لكن تحديث الطلبات تعذر مؤقتًا: "+error.message);
+  }
  }catch{
   $("loginStatus").textContent=auth.hasSavedSession()?
    "تعذر الاتصال مؤقتًا؛ الجلسة محفوظة وسنعيد المحاولة.":

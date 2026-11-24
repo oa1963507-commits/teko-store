@@ -106,7 +106,10 @@ test("Existing owner console verifies owner UID before persisting and restores a
  assert.ok(owner.includes('state.token=await auth.getToken()'));
  assert.ok(owner.includes('state.token=await auth.refresh(true)'));
  assert.ok(owner.includes("await auth.signOut()"));
+ assert.ok(owner.includes("showApp();"));
+ assert.ok(owner.includes("تم تسجيل الدخول، لكن تحديث الطلبات تعذر مؤقتًا"));
+ assert.ok(owner.includes("الجلسة مستمرة، لكن تحديث الطلبات تعذر مؤقتًا"));
  assert.ok(owner.includes("await window.TEKO_OWNER_PUSH_DISABLE?.()"));
- assert.ok(html.indexOf("owner-auth.js?v=53")<html.indexOf("owner.js?v=53"));
- assert.ok(html.includes('owner-auth.js?v=53'));
+ assert.ok(html.indexOf("owner-auth.js?v=54")<html.indexOf("owner.js?v=54"));
+ assert.ok(html.includes('owner-auth.js?v=54'));
 });

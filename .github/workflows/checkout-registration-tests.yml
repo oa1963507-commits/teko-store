@@ -1,0 +1,31 @@
+name: TEKO checkout Supabase registration safeguards
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'cart.js'
+      - 'supabase/functions/teko-order-link/index.ts'
+      - 'tests/checkout-order-registration.test.cjs'
+      - '.github/workflows/checkout-registration-tests.yml'
+  pull_request:
+    paths:
+      - 'app.js'
+      - 'cart.js'
+      - 'supabase/functions/teko-order-link/index.ts'
+      - 'tests/checkout-order-registration.test.cjs'
+      - '.github/workflows/checkout-registration-tests.yml'
+jobs:
+  checkout-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check source JavaScript
+        run: |
+          node --check app.js
+          node --check cart.js
+      - name: Confirm successful DB registration is required before WhatsApp handoff
+        run: node --test tests/checkout-order-registration.test.cjs

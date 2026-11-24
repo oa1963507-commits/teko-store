@@ -7,7 +7,29 @@
  const $=id=>document.getElementById(id);
  if(!$("ownerNotificationToggle"))return;
  const labels={new:"جديد",reviewing:"قيد المراجعة",in_production:"قيد التنفيذ",ready:"جاهز",delivered:"تم التسليم",cancelled:"ملغي"};
+ const LAST_ALERT_KEY="teko-owner-last-notified-id-v55";
  let authorized=false,inFlight=false,timer=null,lastMax=0,nativeEnabled=false,opened=false;
+ function getLastAlert(){
+  try{return Math.max(0,Number(localStorage.getItem(LAST_ALERT_KEY))||0)}
+  catch{return 0}
+ }
+ function saveLastAlert(id){
+  if(!Number.isSafeInteger(id)||id<1)return;
+  try{localStorage.setItem(LAST_ALERT_KEY,String(id))}catch{}
+ }
+ async function syncAppBadge(count){
+  const number=Math.max(0,Math.min(999,Number(count)||0));
+  try{
+   if(number===0){
+    if(typeof navigator.clearAppBadge==="function")await navigator.clearAppBadge();
+    else if(typeof navigator.setAppBadge==="function")await navigator.setAppBadge(0);
+   }else if(typeof navigator.setAppBadge==="function"){
+    await navigator.setAppBadge(number);
+   }
+  }catch{
+   // Some home-screen launchers do not support numeric badges.
+  }
+ }
  const bell=$("ownerNotificationToggle"),badge=$("ownerNotificationBadge"),panel=$("ownerNotificationPanel");
  const list=$("ownerNotificationList"),message=$("ownerNotificationMessage"),permission=$("ownerNotificationPermission");
  const formatDate=value=>{
@@ -37,6 +59,7 @@
  function render(events,unread){
   badge.textContent=unread>99?"99+":String(unread);
   badge.hidden=unread===0;
+  void syncAppBadge(unread);
   // Native app badge follows the same server-verified unread count.
   void window.TEKO_OWNER_APP_BADGE?.update(unread);
   if(!events.length){list.replaceChildren(text("p","لا توجد إشعارات بعد.","owner-notification-empty"));return;}
@@ -65,25 +88,32 @@
    const result=await window.TEKO_OWNER_NOTIFICATIONS_API("ownerFeed");
    const events=Array.isArray(result.events)?result.events:[];
    const max=events.reduce((v,e)=>Math.max(v,Number(e.id)||0),0);
-   if(lastMax>0&&max>lastMax){
-    const newest=events.filter(e=>Number(e.id)>lastMax);
+   const prev=Math.max(lastMax,getLastAlert());
+   // First load must notify existing unread orders instead of silently
+   // setting lastMax to the current event (the original missing-sound bug).
+   const newest=events.filter(e=>Number(e.id)>prev&&!e.owner_read_at);
+   if(newest.length){
+    // Exactly one shared sound per distinct event, including when the
+    // badge already shows "1" on first load.
     for(const e of newest.slice().reverse())nativeAlert(e);
-    message.textContent="وصل "+newest.length+" تحديث جديد.";
+    message.textContent="وصل "+newest.length+" إشعار جديد.";
    }else if(!lastMax)message.textContent="الإشعارات مرتبطة بقاعدة الطلبات الحقيقية.";
    lastMax=Math.max(lastMax,max);
+   saveLastAlert(lastMax);
    render(events,Number(result.unread)||0);
   }catch{
    message.textContent="تعذر تحديث الإشعارات؛ سيتم إعادة المحاولة تلقائيًا.";
   }finally{inFlight=false;}
  }
  function start(){
-  authorized=true;lastMax=0;
+  authorized=true;lastMax=getLastAlert();
   if(timer)clearInterval(timer);
   void poll();
   timer=setInterval(()=>void poll(),20000);
  }
  function stop(){
   authorized=false;lastMax=0;
+  void syncAppBadge(0);
   if(timer)clearInterval(timer);timer=null;
   badge.hidden=true;list.replaceChildren();
   void window.TEKO_OWNER_APP_BADGE?.clear();

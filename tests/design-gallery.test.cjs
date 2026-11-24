@@ -17,11 +17,15 @@ test("The gallery is a shared public JSON catalog, not a localStorage-only libra
  assert.ok(!/\b(localStorage|sessionStorage|indexedDB)\b/.test(gallery));
  assert.ok(!/\b(?:supabase\.storage|supabase\.functions|serviceRole)\b/i.test(gallery));
 });
-test("Every starter design matches the four existing TEKO typography items",()=>{
+test("Original four typography entries remain intact alongside the 92 uploaded PNGs",()=>{
  const expected=[["g1","TEKO BOLD","TEKO"],["g2","STREET ENERGY","STREET"],["g3","YOUR STYLE","YOUR STYLE"],["g4","NO LIMITS","NO LIMITS"]];
- assert.deepEqual(catalog.items.map(x=>[x.id,x.title,x.text]),expected);
+ assert.deepEqual(catalog.items.slice(0,4).map(x=>[x.id,x.title,x.text]),expected);
  assert.equal(new Set(catalog.items.map(x=>x.id)).size,catalog.items.length);
- assert.ok(catalog.items.every(x=>x.kind==="text"&&x.category&&x.font));
+ assert.ok(catalog.items.slice(0,4).every(x=>x.kind==="text"&&x.category&&x.font));
+ const uploaded=catalog.items.slice(4);
+ assert.equal(uploaded.length,92,"The entire uploaded PNG collection must be present");
+ assert.ok(uploaded.every(x=>x.kind==="image"&&x.src.startsWith("assets/design-gallery/")&&x.src.endsWith(".png")&&x.originalName&&/^[a-f0-9]{64}$/.test(x.sha256)));
+
 });
 test("Page exposes searchable filters, preview and add-to-studio buttons",()=>{
  for(const id of ["galleryPage","gallerySearch","galleryCategories","publicGalleryGrid","galleryDetail","galleryPreviewUse"])

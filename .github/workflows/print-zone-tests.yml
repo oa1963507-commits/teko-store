@@ -3,7 +3,14 @@ name: TEKO additional print-zone regression checks
 on:
   push:
     branches:
+      - main
       - feature/additional-print-zones
+    paths:
+      - 'additional-print-zones.*'
+      - 'app.js'
+      - 'index.html'
+      - 'tests/additional-print-zones.test.cjs'
+      - '.github/workflows/print-zone-tests.yml'
   pull_request:
     paths:
       - 'additional-print-zones.*'

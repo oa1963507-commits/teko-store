@@ -66,7 +66,7 @@ async function authorizedOwner(req:Request,db:ReturnType<typeof client>) {
 
 
 const b64url=(bytes:Uint8Array):string=>
- btoa(String.fromCharCode(...bytes)).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+ btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const validB64=(value:unknown,min:number,max:number):value is string=>
  typeof value==="string"&&value.length>=min&&value.length<=max&&/^[a-zA-Z0-9_-]+$/.test(value);
 function validEndpoint(endpoint:unknown):endpoint is string {

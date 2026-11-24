@@ -64,6 +64,48 @@ async function authorizedOwner(req:Request,db:ReturnType<typeof client>) {
   return !error&&data?.user?.id?.toLowerCase()===owner.toLowerCase();
 }
 
+
+const b64url=(bytes:Uint8Array):string=>
+ btoa(String.fromCharCode(...bytes)).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+const validB64=(value:unknown,min:number,max:number):value is string=>
+ typeof value==="string"&&value.length>=min&&value.length<=max&&/^[a-zA-Z0-9_-]+$/.test(value);
+function validEndpoint(endpoint:unknown):endpoint is string {
+ if(typeof endpoint!=="string"||endpoint.length<40||endpoint.length>2048)return false;
+ try{
+  const u=new URL(endpoint);
+  if(u.protocol!=="https:"||u.username||u.password||u.port)return false;
+  return u.hostname==="fcm.googleapis.com"||
+   u.hostname==="updates.push.services.mozilla.com"||
+   u.hostname==="web.push.apple.com"||
+   u.hostname==="android.googleapis.com"||
+   u.hostname.endsWith(".notify.windows.com")||
+   u.hostname.endsWith(".push.windows.com");
+ }catch{return false;}
+}
+async function ownerVapidKey(db:ReturnType<typeof client>) {
+ let {data:config,error}=await db.from("teko_owner_push_config")
+  .select("vapid_public,vapid_private").eq("config_id",1).single();
+ if(error||!config)throw Error("Push backend not initialized");
+ if(!config.vapid_public||!config.vapid_private){
+  // Generated only server-side: the private key is never sent to the browser.
+  const pair=await crypto.subtle.generateKey(
+   {name:"ECDSA",namedCurve:"P-256"},true,["sign","verify"]);
+  const raw=new Uint8Array(await crypto.subtle.exportKey("raw",pair.publicKey));
+  const jwk=await crypto.subtle.exportKey("jwk",pair.privateKey);
+  if(!jwk.d)throw Error("VAPID export unavailable");
+  const {error:saveError}=await db.from("teko_owner_push_config")
+   .update({vapid_public:b64url(raw),vapid_private:jwk.d})
+   .eq("config_id",1).is("vapid_public",null);
+  if(saveError)throw Error("Push activation failed");
+  const state=await db.from("teko_owner_push_config")
+   .select("vapid_public,vapid_private").eq("config_id",1).single();
+  config=state.data;
+  if(state.error||!config?.vapid_public||!config?.vapid_private)
+   throw Error("Push activation unavailable");
+ }
+ return config.vapid_public as string;
+}
+
 Deno.serve(async req=>{
   const origin=req.headers.get("Origin");
   if(req.method==="OPTIONS"&&origin&&ORIGINS.has(origin))
@@ -126,6 +168,40 @@ Deno.serve(async req=>{
         .eq("order_id",tracking.order_id).order("id",{ascending:false}).limit(30);
       if(eventsError)throw Error("Customer timeline unavailable");
       return reply(origin,{order,events:events||[]});
+    }
+
+
+    if(action==="ownerPushKey"||action==="ownerPushSubscribe"||action==="ownerPushUnsubscribe"){
+      if(!await authorizedOwner(req,db))
+        return reply(origin,{error:"Owner authentication required"},403);
+      const publicKey=await ownerVapidKey(db);
+      if(action==="ownerPushKey")return reply(origin,{publicKey});
+      const subscription=data.subscription;
+      const endpoint=action==="ownerPushUnsubscribe"?
+        String(data.endpoint||""):String(subscription?.endpoint||"");
+      if(!validEndpoint(endpoint))return reply(origin,{error:"Unsupported push service"},400);
+      if(action==="ownerPushUnsubscribe"){
+        const {error}=await db.from("teko_owner_push_subscriptions")
+          .delete().eq("endpoint",endpoint);
+        if(error)throw Error("Push unsubscribe failed");
+        return reply(origin,{ok:true});
+      }
+      const keys=subscription?.keys;
+      if(!validB64(keys?.p256dh,80,140)||!validB64(keys?.auth,16,64))
+        return reply(origin,{error:"Invalid push subscription keys"},400);
+      const {count,error:countErr}=await db.from("teko_owner_push_subscriptions")
+        .select("id",{head:true,count:"exact"});
+      if(countErr)throw Error("Push device list unavailable");
+      const exists=await db.from("teko_owner_push_subscriptions")
+       .select("id").eq("endpoint",endpoint).maybeSingle();
+      if(exists.error)throw Error("Push device lookup failed");
+      if(!exists.data&&Number(count)>=12)
+        return reply(origin,{error:"Maximum 12 owner devices"},409);
+      const {error:saveError}=await db.from("teko_owner_push_subscriptions")
+       .upsert({endpoint,p256dh:keys.p256dh,auth:keys.auth,
+         updated_at:new Date().toISOString()},{onConflict:"endpoint"});
+      if(saveError)throw Error("Push device save failed");
+      return reply(origin,{ok:true,subscribed:true,publicKey});
     }
 
     if(action==="ownerFeed"||action==="ownerRead"){

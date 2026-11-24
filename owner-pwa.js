@@ -164,8 +164,11 @@
  });
  window.addEventListener("teko-owner-signin",()=>{
   body.classList.add("owner-authenticated");
-  if($("tabStorage")?.hidden&&$("ownerNavStorage"))$("ownerNavStorage").hidden=true;
-  else if($("ownerNavStorage"))$("ownerNavStorage").hidden=false;
+  // showApp() reveals the storage tab after dispatching sign-in.
+  // Defer visibility sync until its original authorization UI has settled.
+  window.requestAnimationFrame(()=>{
+   if($("ownerNavStorage"))$("ownerNavStorage").hidden=!!$("tabStorage")?.hidden;
+  });
   active("overview");
  });
  window.addEventListener("teko-owner-signout",()=>{

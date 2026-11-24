@@ -78,7 +78,7 @@ test("Client only stores its own capability token after backend activation",asyn
   visibilityState:"visible"
  };
  const win={isSecureContext:true,addEventListener:()=>{}};
- const context={window:win,document:page,localStorage:fakeStorage,crypto:webcrypto,
+ const context={window:win,document:page,localStorage:fakeStorage,crypto:webcrypto,AbortController,
   setInterval:()=>0,setTimeout,clearTimeout,Notification:undefined,
   fetch:async(url,options)=>{
    posts.push(JSON.parse(options.body));

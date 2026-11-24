@@ -16,7 +16,12 @@ self.addEventListener("fetch",event=>{
   // Always request the latest same-origin pages, scripts, CSS, and mockup files.
   // HTTP revalidation is allowed, but no offline CacheStorage is used.
   // Requests to external Supabase and Cloudflare Turnstile are not intercepted.
-  event.respondWith(fetch(request,{cache:request.mode==="navigate"?"no-store":"no-cache"}));
+  // Honor the browser's HTTP cache for unchanged, public hoodie mockups.
+  // Owner pages, authenticated requests and customer data are never cached.
+  const hoodiePhoto=/\/assets\/(?:hoodie-(?:front|back|left|right)\.png|hoodie-(?:white|black|burgundy|navy|gray|beige|brown)-(?:front|back|left|right)\.webp|hero-hoodie-burgundy\.png)$/;
+  const cacheMode=request.mode==="navigate"?"no-store":
+   hoodiePhoto.test(target.pathname)?"default":"no-cache";
+  event.respondWith(fetch(request,{cache:cacheMode}));
 });
 
 
@@ -77,7 +82,8 @@ self.addEventListener("push",event=>{
    badge:"./icons/icon-192.png",
    data:{type:"TEKO_OWNER_PUSH",id,url:"./owner.html"},
    silent:p.silent===true,
-   renotify:p.silent!==true
+   renotify:p.silent!==true,
+   vibrate:p.silent===true?[]:[220,100,220,100,300]
   });
  })());
 });

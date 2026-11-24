@@ -27,8 +27,9 @@
   window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{
    detail:{id:e.id,message:describe(e)}
   }));
-  // Background Web Push owns system notifications when a device is subscribed.
-  if(window.TEKO_OWNER_PUSH_ACTIVE)return;
+  // One audible alert per event: focused owners hear the shared TEKO chime,
+  // hidden owners hear the OS notification. Never play both at once.
+  if(window.TEKO_OWNER_PUSH_ACTIVE||document.visibilityState!=="hidden")return;
   if(!nativeEnabled||!("Notification" in window)||Notification.permission!=="granted")return;
   try{new Notification("TEKO STORE — تنبيه أوردر",{body:describe(e),tag:"teko-owner-order-"+e.id});}
   catch{}

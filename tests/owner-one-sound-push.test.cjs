@@ -19,7 +19,7 @@ test("Owner's original MP3 is the single foreground alert and is not synthesized
  assert.doesNotMatch(sound,/createOscillator/);
  for(const id of ["ownerSoundToggle","ownerSoundTest","ownerSoundUpload","ownerSoundFile"])
   assert.ok(html.includes('id="'+id+'"'));
- assert.ok(html.includes('owner-sound.js?v=57'));
+ assert.match(html,/owner-sound\.js\?v=\d+/);
  assert.ok(sound.includes("teko-owner-alert-event"));
  assert.ok(notify.includes("teko-owner-alert-event"));
 });

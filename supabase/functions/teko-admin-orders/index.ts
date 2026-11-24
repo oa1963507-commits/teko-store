@@ -7,20 +7,16 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// Restrict owner API CORS to the exact TEKO store origins.
-const ALLOWED_ORIGINS = new Set([
-  "https://oa1963507-commits.github.io",
-  "https://teko-store.pages.dev",
-]);
-function allowedOrigin(origin: string | null): origin is string {
-  return origin !== null && ALLOWED_ORIGINS.has(origin);
-}
+const ORIGIN = "https://oa1963507-commits.github.io";
+const OWNER_ORIGINS = new Set([ORIGIN,"https://teko-store.pages.dev"]);
+const allowedOwnerOrigin = (origin: string | null): origin is string =>
+  origin!==null&&OWNER_ORIGINS.has(origin);
 const BUCKET = "teko-orders";
 const PAGE_SIZE = 25;
 const STATUS = ["new","reviewing","in_production","ready","delivered","cancelled"] as const;
 
 function cors(origin: string | null): Record<string,string> {
-  return allowedOrigin(origin) ? {
+  return allowedOwnerOrigin(origin) ? {
     "Access-Control-Allow-Origin": origin!,
     "Access-Control-Allow-Headers": "authorization, content-type, apikey",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -231,8 +227,8 @@ async function deletePrivateZips(admin: ReturnType<typeof adminClient>,input:Rec
 
 Deno.serve(async req=>{
   const origin=req.headers.get("Origin");
-  if(req.method==="OPTIONS"&&allowedOrigin(origin))return new Response(null,{status:204,headers:cors(origin)});
-  if(!allowedOrigin(origin))return reply(origin,{error:"Forbidden origin"},403);
+  if(req.method==="OPTIONS"&&allowedOwnerOrigin(origin))return new Response(null,{status:204,headers:cors(origin)});
+  if(!allowedOwnerOrigin(origin))return reply(origin,{error:"Forbidden origin"},403);
   if(req.method!=="POST")return reply(origin,{error:"Method not allowed"},405);
   if(!req.headers.get("content-type")?.includes("application/json"))return reply(origin,{error:"Expected JSON"},415);
   try{

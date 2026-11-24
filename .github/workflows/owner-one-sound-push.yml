@@ -1,0 +1,30 @@
+name: TEKO OWNER one-sound Web Push checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'owner.html'
+      - 'owner.js'
+      - 'owner-notifications.js'
+      - 'owner-sound.js'
+      - 'owner-push.js'
+      - 'sw.js'
+      - 'supabase/functions/teko-order-notifications/index.ts'
+      - 'supabase/functions/teko-owner-push-dispatch/index.ts'
+      - 'tests/owner-one-sound-push.test.cjs'
+      - '.github/workflows/owner-one-sound-push.yml'
+jobs:
+  owner-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --check owner.js
+          node --check owner-notifications.js
+          node --check owner-sound.js
+          node --check owner-push.js
+          node --check sw.js
+      - run: node --test tests/owner-one-sound-push.test.cjs

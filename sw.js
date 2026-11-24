@@ -33,6 +33,18 @@ self.addEventListener("push",event=>{
   if(!p||p.data?.type!=="TEKO_OWNER_PUSH")return;
   const id=Number(p.data.id)||0;
   const body=String(p.body||"وصل إشعار جديد للمتجر").slice(0,150);
+  // Badge is driven by the backend unread count, even while the PWA is closed.
+  const badgeCount=Number(p.badgeCount);
+  if(Number.isInteger(badgeCount)&&badgeCount>=0){
+   try{
+    if(badgeCount===0)await self.navigator.clearAppBadge?.();
+    else await self.navigator.setAppBadge?.(Math.min(999,badgeCount));
+   }catch{
+    // Some Android launchers do not support numeric PWA app badges.
+   }
+  }else{
+   try{await self.navigator.setAppBadge?.();}catch{}
+  }
   const pages=await self.clients.matchAll({type:"window",includeUncontrolled:true});
   const focused=pages.filter(page=>{
    try{
@@ -66,5 +78,12 @@ self.addEventListener("notificationclick",event=>{
   });
   if(owner){await owner.focus();return}
   await self.clients.openWindow(new URL("./owner.html",self.registration.scope).href);
+ })());
+});
+
+self.addEventListener("message",event=>{
+ if(event.data?.type!=="TEKO_OWNER_CLEAR_BADGE")return;
+ event.waitUntil((async()=>{
+  try{await self.navigator.clearAppBadge?.();}catch{}
  })());
 });

@@ -23,6 +23,12 @@
    "طلب جديد "+e.order_code:"تحديث "+e.order_code+": "+(labels[e.status]||e.status);
  }
  function nativeAlert(e){
+  // A single shared chime is triggered for every type of owner notification.
+  window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{
+   detail:{id:e.id,message:describe(e)}
+  }));
+  // Background Web Push owns system notifications when a device is subscribed.
+  if(window.TEKO_OWNER_PUSH_ACTIVE)return;
   if(!nativeEnabled||!("Notification" in window)||Notification.permission!=="granted")return;
   try{new Notification("TEKO STORE — تنبيه أوردر",{body:describe(e),tag:"teko-owner-order-"+e.id});}
   catch{}
@@ -100,6 +106,14 @@
   catch{message.textContent="تعذر تعليم الإشعارات كمقروءة؛ جرّب مجددًا.";}
  });
  permission.addEventListener("click",async()=>{
+  if(typeof window.TEKO_OWNER_PUSH_ENABLE==="function"){
+   try{
+    const info=await window.TEKO_OWNER_PUSH_ENABLE();
+    nativeEnabled=("Notification" in window)&&Notification.permission==="granted";
+    message.textContent=info;
+   }catch(e){message.textContent="تعذر تفعيل تنبيهات الخلفية: "+(e?.message||"حاول مرة أخرى");}
+   return;
+  }
   if(!window.isSecureContext||!("Notification" in window)){
    message.textContent="المتصفح ده لا يدعم إشعارات الشاشة؛ الجرس شغال داخل لوحة المالك.";return;
   }
@@ -112,6 +126,14 @@
   }catch{message.textContent="تعذر طلب إذن التنبيهات من المتصفح.";}
  });
  try{nativeEnabled=sessionStorage.getItem("teko-owner-native-alerts")==="1";}catch{}
+ window.addEventListener("teko-owner-push-message",event=>{
+   if(!authorized)return;
+   const messageData=event.detail||{};
+   window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{
+     detail:{id:messageData.id,message:messageData.message||"وصل إشعار للمتجر"}
+   }));
+   void poll();
+ });
  window.addEventListener("teko-owner-signin",start);
  window.addEventListener("teko-owner-signout",stop);
  document.addEventListener("visibilitychange",()=>{if(authorized&&document.visibilityState==="visible")void poll();});

@@ -1,0 +1,16 @@
+/* TEKO STORE — additive print-zone review guides, only when toggled on.
+   Guides are UI-only; the original mockup and export stay unmodified. */
+#zones{position:absolute;inset:0;z-index:3;pointer-events:none}
+#zones .additional-zone-guides{position:absolute;inset:0;display:block;width:100%;height:100%;pointer-events:none}
+#zones .additional-zone-guides polygon{
+ fill:rgba(244,30,68,.12);stroke:#ff3657;stroke-width:2.3;
+ stroke-dasharray:11 7;vector-effect:non-scaling-stroke;
+}
+#additionalPrintZonesBtn[aria-pressed="true"]{
+ border-color:#f22b4e;color:#f83153;
+ box-shadow:inset 0 0 0 1px rgba(242,43,78,.25)
+}
+#additionalPrintZonesBtn:focus-visible{outline:2px solid #f72b4e;outline-offset:2px}
+@media(max-width:850px){
+ #additionalPrintZonesBtn{min-height:36px;white-space:normal}
+}

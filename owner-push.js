@@ -30,8 +30,9 @@
  };
  async function getSubscription(){
   if(!supported())return null;
-  const registration=await navigator.serviceWorker.ready;
-  return registration.pushManager.getSubscription();
+  // Never wait indefinitely for an unregistered service worker at logout.
+  const registration=await navigator.serviceWorker.getRegistration("./");
+  return registration?.pushManager?.getSubscription()||null;
  }
  async function updateSubscription(sub){
   const json=sub.toJSON();

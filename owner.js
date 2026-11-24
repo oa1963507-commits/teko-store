@@ -504,7 +504,8 @@ $("loginForm").addEventListener("submit",async event=>{
 $("logoutButton").addEventListener("click",async()=>{
  const button=$("logoutButton");button.disabled=true;
  try{
-  await window.TEKO_OWNER_PUSH_DISABLE?.();
+  try{await window.TEKO_OWNER_PUSH_DISABLE?.();}catch{}
+  // Revoke the Supabase session even if the push service is unavailable.
   await auth.signOut();
  }finally{
   showLogin("تم تسجيل الخروج من لوحة المالك.");

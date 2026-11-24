@@ -1,0 +1,46 @@
+name: TEKO owner/customer notifications checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'owner.js'
+      - 'owner.html'
+      - 'owner-notifications.js'
+      - 'tracking.html'
+      - 'customer-notifications.js'
+      - 'supabase/functions/teko-order-notifications/index.ts'
+      - 'supabase/functions/teko-admin-orders/index.ts'
+      - 'app.js'
+      - 'index.html'
+      - 'tests/order-notifications.test.cjs'
+      - '.github/workflows/notifications-tests.yml'
+  pull_request:
+    paths:
+      - 'owner.js'
+      - 'owner.html'
+      - 'owner-notifications.js'
+      - 'tracking.html'
+      - 'customer-notifications.js'
+      - 'supabase/functions/teko-order-notifications/index.ts'
+      - 'app.js'
+      - 'index.html'
+      - 'tests/order-notifications.test.cjs'
+      - '.github/workflows/notifications-tests.yml'
+
+jobs:
+  notify-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate owner, customer and checkout JavaScript
+        run: |
+          node --check owner.js
+          node --check owner-notifications.js
+          node --check customer-notifications.js
+          node --check app.js
+      - name: Test order notifications, security boundaries and local tracking
+        run: node --test tests/order-notifications.test.cjs

@@ -62,7 +62,7 @@ async function call(action,fields={}){
 }
 // Notification requests reuse the owner JWT, which stays inside this closure.
 window.TEKO_OWNER_NOTIFICATIONS_API=async(action,fields={})=>{
- if(!["ownerFeed","ownerRead"].includes(action))throw Error("Invalid action");
+ if(!["ownerFeed","ownerRead","ownerPushKey","ownerPushSubscribe","ownerPushUnsubscribe"].includes(action))throw Error("Invalid action");
  if(!state.token||Date.now()>state.expiresAt)throw Error("Session expired");
  const response=await fetch(project+"/functions/v1/teko-order-notifications",{
   method:"POST",headers:{"Content-Type":"application/json","apikey":publicKey,"Authorization":"Bearer "+state.token},

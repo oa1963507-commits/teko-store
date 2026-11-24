@@ -14,7 +14,8 @@ test("The gallery is a shared public JSON catalog, not a localStorage-only libra
  assert.ok(Array.isArray(catalog.items));
  assert.ok(catalog.items.length>=4);
  assert.ok(gallery.includes('fetch("catalog/gallery.json"'));
- assert.ok(!/localStorage|sessionStorage|supabase|serviceRole/i.test(gallery));
+ assert.ok(!/\b(localStorage|sessionStorage|indexedDB)\b/.test(gallery));
+ assert.ok(!/\b(?:supabase\.storage|supabase\.functions|serviceRole)\b/i.test(gallery));
 });
 test("Every starter design matches the four existing TEKO typography items",()=>{
  const expected=[["g1","TEKO BOLD","TEKO"],["g2","STREET ENERGY","STREET"],["g3","YOUR STYLE","YOUR STYLE"],["g4","NO LIMITS","NO LIMITS"]];

@@ -156,10 +156,11 @@ function fresh(){
  location.hash="#studio";route();
 }
 function navigate(place){
- const screen=place==="cart"?"cart":place==="studio"||place==="designs"?"studio":"home";
+ const screen=place==="cart"?"cart":place==="gallery"?"gallery":place==="studio"||place==="designs"?"studio":"home";
  $("home").hidden=screen!=="home";
  $("studioView").hidden=screen!=="studio";
  $("cartPage").hidden=screen!=="cart";
+ $("galleryPage").hidden=screen!=="gallery";
  document.body.classList.toggle("studio-mode",screen==="studio");
  document.body.classList.toggle("cart-checkout-active",buyingCart&&screen==="studio");
  document.querySelectorAll("[data-route]").forEach(a=>{
@@ -168,13 +169,14 @@ function navigate(place){
   else a.removeAttribute("aria-current");
  });
  if(screen==="cart")renderCart();
+ if(screen==="gallery")window.TEKO_GALLERY_RENDER?.();
  if(screen==="studio"){renderSummary();window.TEKO_START_SECURITY?.();}
  window.scrollTo(0,0);
  if(place==="designs")setTimeout(()=>$("designs").scrollIntoView({behavior:"smooth",block:"start"}),90);
 }
 function route(){
  const routeName=location.hash.slice(1);
- navigate(routeName==="cart"?"cart":["studio","editor","checkout"].includes(routeName)?"studio":
+ navigate(routeName==="cart"?"cart":routeName==="gallery"?"gallery":["studio","editor","checkout"].includes(routeName)?"studio":
   ["designs","studio-designs"].includes(routeName)?"designs":"home");
  if(routeName==="checkout")setTimeout(()=>$("checkout").scrollIntoView({behavior:"smooth",block:"start"}),120);
 }

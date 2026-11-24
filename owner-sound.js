@@ -8,7 +8,7 @@
  const $=id=>document.getElementById(id);
  const toggle=$("ownerSoundToggle"),test=$("ownerSoundTest"),status=$("ownerSoundStatus"),upload=$("ownerSoundUpload"),fileInput=$("ownerSoundFile");
  if(!toggle||!test||!upload||!fileInput)return;
- const KEY="teko_owner_sound_v1",DB="teko-owner-sound-db",STORE="audio",FILE_KEY="owner-alert",URL="./assets/notifications/teko-owner-alert.mp3";
+ const KEY="teko_owner_sound_v1",DB="teko-owner-sound-db",STORE="audio",FILE_KEY="owner-alert",SOUND_URL="./assets/notifications/teko-owner-alert.mp3";
  let enabled=true,loggedIn=false,ready=false,player=null,blobUrl=null,sourceReady=false,sourcePromise=null,priming=false;
  const ids=new Set(),queue=[];
  try{enabled=localStorage.getItem(KEY)!=="0"}catch{}
@@ -60,8 +60,8 @@
    }
    // Never assume that a missing uploaded ringtone exists on hosting.
    try{
-    const response=await fetch(URL,{method:"HEAD",cache:"no-store"});
-    if(response.ok){setSource(URL,false);return true;}
+    const response=await fetch(SOUND_URL,{method:"HEAD",cache:"no-store"});
+    if(response.ok){setSource(SOUND_URL,false);return true;}
    }catch{}
    note("ملف الصافرة مش موجود على الموقع. اضغط «اختيار ملف الصافرة» وحدد MP3 الأصلي مرة واحدة على الجهاز ده.");
    return false;

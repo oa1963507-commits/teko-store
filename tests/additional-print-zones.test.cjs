@@ -97,7 +97,7 @@ test("Production blocking logic still rejects mixed illegal prints",()=>{
 test("New visual guide stays optional and cannot change export files",()=>{
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
  const idxNew=html.indexOf('<script src="additional-print-zones.js?v=49">');
- const idxEditor=html.indexOf('<script src="app.js?v=49">');
+ const idxEditor=html.indexOf('<script src="app.js?v=50">');
  assert.ok(idxNew>0&&idxEditor>idxNew,"Zone module must run before editor");
  assert.match(html,/id="additionalPrintZonesBtn"/);
  assert.match(code,/showTools&&showAdditionalZoneGuides/);

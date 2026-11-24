@@ -214,7 +214,21 @@ function loadImages(){Object.entries(ASSETS).forEach(([v,path])=>{const im=new I
  im.src=(window.TEKO_HOODIE_IMAGES&&window.TEKO_HOODIE_IMAGES[v])||path;})}
 function renderColors(){window.TEKO_DRAFT?.changed();$('colors').innerHTML=COLORS.map((c,i)=>`<button class="swatch ${color[0]===c[0]?'selected':''}" data-color="${i}"><i style="background:${c[1]}"></i>${c[0]}</button>`).join('')}
 function renderSizes(){$('sizes').innerHTML=Object.keys(SIZES).map(s=>`<button class="chip ${s===size?'selected':''}" data-size="${s}">${s}</button>`).join('');let q=SIZES[size];$('sizeInfo').textContent=`عرض الصدر ${q[0]} سم · طول الهودي ${q[1]} سم · طول الكم ${q[2]} سم`}
-function renderGallery(){$('gallery').innerHTML=store.gallery.map(g=>`<div class="gitem"><div class="gpreview">${g.src?`<img alt="" src="${g.src}">`:`<span>${escapeHTML(g.text||g.name)}</span>`}</div><button data-gallery="${escapeHTML(g.id)}">+ أضف ${escapeHTML(g.name)}</button></div>`).join('')}
+// Public catalog entries join the original local demo library without
+// modifying browser-stored designs, cart data, or saved customer drafts.
+function availableGallery(){
+ const publicItems=Array.isArray(window.TEKO_GALLERY_ITEMS)?window.TEKO_GALLERY_ITEMS:[];
+ const publicIds=new Set(publicItems.map(item=>item.id));
+ return [...publicItems,...store.gallery.filter(item=>!publicIds.has(item.id))];
+}
+function renderGallery(){
+ $('gallery').innerHTML=availableGallery().map(g=>{
+  const name=String(g.title||g.name||'تصميم');
+  const preview=g.src?`<img alt="" loading="lazy" src="${escapeHTML(g.src)}">`:
+    `<span>${escapeHTML(g.text||name)}</span>`;
+  return `<div class="gitem"><div class="gpreview">${preview}</div><button data-gallery="${escapeHTML(g.id)}">+ أضف ${escapeHTML(name)}</button></div>`;
+ }).join('');
+}
 function addDesign(d){
  snapshot();
  const aspect=Number(d.ratio)>0&&Number.isFinite(Number(d.ratio))?Number(d.ratio):1.5;
@@ -229,6 +243,23 @@ function addDesign(d){
  renderAll();
  notify('تمت إضافة التصميم؛ حرّكه بالسحب أو حدّد مقاسه بالسنتيمتر');
 }
+// Shared entrypoint for the public catalog and original editor sidebar.
+// Adds to the existing draft; never deletes edits or alters cart/checkout.
+window.TEKO_GALLERY_USE=async galleryItem=>{
+ if(!galleryItem||typeof galleryItem!=='object')return false;
+ const label=String(galleryItem.title||galleryItem.name||'تصميم').slice(0,80);
+ if(galleryItem.kind==='image'||galleryItem.src){
+  const src=String(galleryItem.src||'');
+  if(!src)return false;
+  const image=await loadAsset(src);
+  addDesign({kind:'image',src,sourceName:label,ratio:image.naturalWidth/image.naturalHeight});
+ }else{
+  addDesign({kind:'text',text:String(galleryItem.text||label),
+   font:galleryItem.font||'Impact',color:galleryItem.color||'#ffffff',sourceName:label});
+ }
+ return true;
+};
+window.addEventListener('teko-gallery-updated',renderGallery);
 function renderDesigns(){
  window.TEKO_DRAFT?.changed();
  layer.innerHTML='';
@@ -345,7 +376,14 @@ $('colors').addEventListener('click',e=>{const b=e.target.closest('[data-color]'
 $('sizes').addEventListener('click',e=>{const b=e.target.closest('[data-size]');if(!b)return;size=b.dataset.size;renderSizes();renderDesigns();renderSummary()});
 $('viewButtons').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)selectView(b.dataset.view)});
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));for(const name of ['Gallery','Upload','Text'])$('tab'+name).hidden=(name.toLowerCase()!==b.dataset.tab)}));
-$('gallery').addEventListener('click',e=>{const b=e.target.closest('[data-gallery]');if(!b)return;const g=store.gallery.find(x=>x.id===b.dataset.gallery);if(g){if(g.src){loadAsset(g.src).then(im=>addDesign({kind:'image',src:g.src,sourceName:g.name,ratio:im.naturalWidth/im.naturalHeight})).catch(()=>notify('تعذر تحميل التصميم'))}else addDesign({kind:'text',text:g.text||g.name,font:'Impact',color:'#ffffff',sourceName:g.name})}});
+$('gallery').addEventListener('click',e=>{
+ const button=e.target.closest('[data-gallery]');if(!button)return;
+ const item=availableGallery().find(x=>x.id===button.dataset.gallery);
+ if(!item)return;
+ button.disabled=true;
+ window.TEKO_GALLERY_USE(item).catch(()=>notify('تعذر تحميل التصميم'))
+  .finally(()=>{button.disabled=false});
+});
 function fileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file)})}
 $('uploadFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(f.size>6*1024*1024){notify('حجم الملف كبير. الحد التجريبي 6 ميجابايت');return}lastFile=f;const src=await fileData(f);try{const im=await loadAsset(src);addDesign({kind:'image',src,sourceName:f.name,ratio:im.naturalWidth/im.naturalHeight});}catch{notify('ملف الصورة غير صالح')}e.target.value=''});
 $('addText').addEventListener('click',()=>{const text=$('textContent').value.trim();if(!text){notify('اكتب الجملة أولًا');return}addDesign({kind:'text',text,font:$('font').value,color:$('textColor').value,sourceName:'كتابة: '+text.slice(0,25)})});

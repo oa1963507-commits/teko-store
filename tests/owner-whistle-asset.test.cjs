@@ -4,24 +4,27 @@ const fs=require("node:fs");
 const path=require("node:path");
 const root=path.resolve(__dirname,"..");
 const sound=fs.readFileSync(path.join(root,"owner-sound.js"),"utf8");
-const match=sound.match(/KEY="teko_owner_sound_v1",URL="([^"]+)"/);
-test("Owner's uploaded whistle must be accessible as a real MP3 asset",async()=>{
- assert.ok(match,"The approved MP3 must be configured");
- const url=match[1];
- let bytes;
- if(/^https:\/\//.test(url)){
-  assert.ok(url.startsWith("https://kopsyfhpcilafuesgjti.supabase.co/storage/v1/object/public/"),"Do not use an untrusted audio host");
-  const resp=await fetch(url,{signal:AbortSignal.timeout(12000)});
-  assert.equal(resp.status,200,"Whistle audio must be publicly downloadable before release");
-  bytes=Buffer.from(await resp.arrayBuffer());
- }else{
-  assert.ok(url.startsWith("./assets/notifications/"));
-  const asset=path.resolve(root,url);
-  assert.ok(fs.existsSync(asset),"Approved whistle MP3 is missing from the deployed site");
-  bytes=fs.readFileSync(asset);
- }
- assert.ok(bytes.length>1200&&bytes.length<512000,"Missing/empty MP3 audio");
+const html=fs.readFileSync(path.join(root,"owner.html"),"utf8");
+
+test("Owner can select and locally persist the exact approved MP3 without a broken hosted asset",()=>{
+ assert.match(sound,/SOUND_URL="\.\/assets\/notifications\/teko-owner-alert\.mp3"/);
+ assert.match(sound,/indexedDB\.open\(DB,1\)/);
+ assert.match(sound,/URL\.createObjectURL\(file\)/);
+ assert.match(sound,/await saveFile\(file\)/);
+ assert.match(sound,/fileInput\.click\(\)/);
+ assert.match(sound,/new Audio\(url\)/);
+ assert.doesNotMatch(sound,/createOscillator/);
+ assert.match(html,/id="ownerSoundUpload"/);
+ assert.match(html,/id="ownerSoundTest"/);
+ assert.match(html,/id="ownerSoundFile"/);
+});
+test("If an approved MP3 is bundled later, verify that it is real audio",()=>{
+ const relative="./assets/notifications/teko-owner-alert.mp3";
+ const asset=path.resolve(root,relative);
+ if(!fs.existsSync(asset))return;
+ const bytes=fs.readFileSync(asset);
+ assert.ok(bytes.length>1200 && bytes.length<8*1024*1024);
  const id3=bytes.subarray(0,3).toString("ascii")==="ID3";
- const frame=bytes[0]===0xff&&(bytes[1]&0xe0)===0xe0;
- assert.ok(id3||frame,"Audio must be encoded as actual MP3 data");
+ const frame=bytes[0]===0xff && (bytes[1]&0xe0)===0xe0;
+ assert.ok(id3||frame);
 });

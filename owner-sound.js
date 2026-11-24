@@ -81,34 +81,34 @@
   if(queue.length>150)ids.delete(queue.shift());
   return true;
  }
- async function play(testRun=false){
-  if(!loggedIn||!enabled||(!testRun&&document.visibilityState!=="visible"))return false;
-  if(!await loadSource())return false;
+ // Launch playback synchronously from a genuine click if the MP3 is loaded.
+ // Awaiting IndexedDB or a HEAD request before .play() can lose mobile
+ // user activation and silently fail even though notifications arrive.
+ function play(testRun=false){
+  if(!loggedIn||!enabled||(!testRun&&document.visibilityState!=="visible"))return Promise.resolve(false);
+  if(!sourceReady){
+   return loadSource().then(ok=>ok?play(testRun):false);
+  }
   try{
-   player.muted=false;player.pause();player.currentTime=0;
-   await player.play();
-   ready=true;
-   if(testRun)note("✓ صوت الصافرة شغّال. نفس الملف هيتشغّل مع كل إشعار جديد أثناء فتح اللوحة.");
-   return true;
-  }catch(error){
-   ready=false;
-   note("الصوت اتحمّل لكن المتصفح منع تشغيله. اضغط «تجربة الصوت»، وتأكد إن صوت الجهاز والتبويب مش مكتومين.");
-   return false;
+   const p=player;
+   p.pause();p.currentTime=0;p.muted=false;
+   const attempt=p.play();
+   return Promise.resolve(attempt).then(()=>{
+    ready=true;
+    if(testRun)note("✓ تم تشغيل الصافرة على الجهاز. نفس الصوت عند كل إشعار جديد واللوحة مفتوحة.");
+    return true;
+   }).catch(err=>{
+    ready=false;
+    const reason=err?.name==="NotAllowedError"?"المتصفح منع التشغيل التلقائي":
+     err?.name==="NotSupportedError"?"الملف الصوتي غير مدعوم":"تعذر تشغيل ملف الصافرة";
+    note(reason+". اضغط «تجربة الصوت» على نفس الجهاز، وتأكد إن صوت التطبيق مش مكتوم.");
+    return false;
+   });
+  }catch(err){
+   ready=false;note("تعذر تشغيل الصافرة على الجهاز؛ أعد اختيار ملف MP3 ثم اضغط تجربة الصوت.");
+   return Promise.resolve(false);
   }
  }
- async function prime(){
-  if(!loggedIn||!enabled||ready||priming||!sourceReady)return;
-  priming=true;
-  try{
-   player.muted=true;
-   await player.play();
-   player.pause();player.currentTime=0;player.muted=false;
-   ready=true;
-  }catch{if(player){player.pause();player.muted=false;}}
-  finally{priming=false;}
- }
- document.addEventListener("pointerdown",()=>void prime(),{capture:true});
- document.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" ")void prime();},{capture:true});
  upload.addEventListener("click",()=>fileInput.click());
  fileInput.addEventListener("change",async()=>{
   const file=fileInput.files?.[0];

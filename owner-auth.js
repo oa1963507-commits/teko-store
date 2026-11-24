@@ -14,9 +14,11 @@
  let restoring=false;
  const emit=type=>window.dispatchEvent(new Event(type));
  function valid(s){
+  // This Supabase GoTrue project issues 12-character opaque refresh tokens.
+  // Do not reject valid, server-issued tokens by guessing a longer minimum.
   return s&&s.version===1&&typeof s.accessToken==="string"&&
    s.accessToken.length>100&&s.accessToken.length<6500&&
-   typeof s.refreshToken==="string"&&s.refreshToken.length>15&&s.refreshToken.length<7000&&
+   typeof s.refreshToken==="string"&&s.refreshToken.length>=12&&s.refreshToken.length<7000&&
    Number.isFinite(s.expiresAt)&&s.expiresAt>1e12;
  }
  function saved(){

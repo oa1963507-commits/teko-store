@@ -10,7 +10,7 @@ const owner=fs.readFileSync(path.join(root,"owner.js"),"utf8");
 const html=fs.readFileSync(path.join(root,"owner.html"),"utf8");
 const fakeJwt=i=>"eyJhbGciOiJIUzI1NiJ9."+(String(i).repeat(160))+".signed";
 function fixture(storage=new Map(),clock={now:Date.now()},server={rotations:0,logouts:0}){
- let refreshToken="initial-refresh-token-value-"+String(clock.now);
+ let refreshToken="abcdefghijkl"; // Real TEKO GoTrue refresh tokens are 12 characters.
  const results=[];
  const localStorage={
   getItem:k=>storage.get(k)??null,
@@ -29,7 +29,7 @@ function fixture(storage=new Map(),clock={now:Date.now()},server={rotations:0,lo
    if(input.refresh_token!==refreshToken)
     return{ok:false,status:400,json:async()=>({error:"invalid_grant"})};
    server.rotations++;
-   refreshToken="rotated-refresh-"+server.rotations+"-"+clock.now;
+   refreshToken=String(server.rotations).padStart(12,"0");
    return {ok:true,status:200,json:async()=>({
     access_token:fakeJwt(server.rotations+2),refresh_token:refreshToken,expires_in:3600
    })};
@@ -64,7 +64,7 @@ test("Supabase rotating tokens persist only after server-side owner confirmation
  f.auth.confirmOwner();
  assert.equal(f.auth.hasSavedSession(),true);
  assert.equal(f.storage.size,1);
- assert.ok(JSON.parse([...f.storage.values()][0]).refreshToken);
+ assert.equal(JSON.parse([...f.storage.values()][0]).refreshToken.length,12);
  assert.ok(!JSON.stringify([...f.storage.values()][0]).includes("redacted"),"Never save password");
 });
 test("Owner session survives a full page reload without entering a password",async()=>{
@@ -74,6 +74,7 @@ test("Owner session survives a full page reload without entering a password",asy
  const reload=fixture(f.storage,f.clock,f.server);
  assert.equal(await reload.auth.restore(),true);
  assert.equal(await reload.auth.getToken(),first);
+ assert.equal(JSON.parse([...f.storage.values()][0]).refreshToken.length,12);
  assert.equal(reload.auth.hasSavedSession(),true);
 });
 test("Expired JWT is refreshed transparently and session saved for a later reload",async()=>{

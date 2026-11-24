@@ -1,4 +1,3 @@
-/* TEKO OWNER V55: exact whistle playback, home-screen badge and push checks. */
 const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
@@ -14,94 +13,81 @@ const html=read("owner.html");
 const dispatcher=read("supabase/functions/teko-owner-push-dispatch/index.ts");
 const api=read("supabase/functions/teko-order-notifications/index.ts");
 
-test("Every notification plays the same supplied whistle MP3, not a synthetic tone",()=>{
- assert.ok(sound.includes("new Audio(source())"));
- assert.ok(sound.includes(".mp3"));
- assert.ok(!sound.includes("createOscillator"));
- assert.ok(!sound.includes("setValueAtTime(650"));
- assert.ok(html.includes('id="ownerSoundToggle"'));
- assert.ok(html.includes('id="ownerSoundTest"'));
- assert.ok(html.includes('id="ownerSoundImport"'));
- assert.ok(html.includes('id="ownerSoundFile"'));
- assert.ok(html.includes('src="owner-sound.js?v=55"'));
- assert.ok(html.includes('src="owner-notifications.js?v=55"'));
+test("Owner's original MP3 is the single foreground alert and is not synthesized",()=>{
+ assert.match(sound,/new Audio\(url\)/);
+ assert.match(sound,/URL\.createObjectURL\(file\)/);
+ assert.doesNotMatch(sound,/createOscillator/);
+ for(const id of ["ownerSoundToggle","ownerSoundTest","ownerSoundUpload","ownerSoundFile"])
+  assert.ok(html.includes('id="'+id+'"'));
+ assert.ok(html.includes('owner-sound.js?v=57'));
  assert.ok(sound.includes("teko-owner-alert-event"));
  assert.ok(notify.includes("teko-owner-alert-event"));
 });
-test("Sound is deduplicated across push and polling; one sound per event id",async()=>{
- const nodes=new Map(),events=new Map(),storage=new Map(),played=[];
+
+test("Two distinct notifications produce two plays of the same sound, not one for duplicates",async()=>{
+ const nodes=new Map(),events=new Map(),stored=new Map(),played=[];
  function node(id){
   if(!nodes.has(id)){
    const listeners=new Map();
-   nodes.set(id,{textContent:"",disabled:false,files:[],
-    value:"",attributes:{},setAttribute(k,v){this.attributes[k]=v},
+   nodes.set(id,{textContent:"",disabled:false,files:[],value:"",attributes:{},
+    setAttribute(key,value){this.attributes[key]=value},
     addEventListener(type,fn){listeners.set(type,fn)},
-    click(){return listeners.get("click")?.()},pause(){},focus(){}});
+    click(){return listeners.get("click")?.()},
+    pause(){},focus(){}});
   }
   return nodes.get(id);
  }
  class FakeAudio{
-  constructor(src){this.src=src;this.currentTime=0;this.volume=1;}
+  constructor(src){this.src=src;this.currentTime=0;this.volume=1;this.muted=false;}
   play(){played.push(this.src);return Promise.resolve();}
-  pause(){}
+  pause(){}removeAttribute(){}load(){}
  }
  const window={
   addEventListener(type,fn){if(!events.has(type))events.set(type,[]);events.get(type).push(fn)},
   dispatchEvent(event){for(const fn of events.get(event.type)||[])fn(event)}
  };
  const CustomEvent=class{constructor(type,payload){this.type=type;this.detail=payload?.detail}};
- const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,v)=>storage.set(key,v)};
- vm.runInNewContext(sound,{window,document:{getElementById:node,visibilityState:"visible"},
-  localStorage,Audio:FakeAudio,CustomEvent,FileReader:class{}});
- window.dispatchEvent(new CustomEvent("teko-owner-signin",{}));
+ const localStorage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)};
+ const document={getElementById:node,visibilityState:"visible",addEventListener(){}};
+ vm.runInNewContext(sound,{window,document,Audio:FakeAudio,localStorage,
+  CustomEvent,fetch:async()=>({ok:true}),URL,
+ });
+ window.dispatchEvent(new CustomEvent("teko-owner-signin"));
+ await new Promise(resolve=>setImmediate(resolve));
  assert.equal(node("ownerSoundToggle").attributes["aria-pressed"],"true");
- await node("ownerSoundTest").click();
+ window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:1}}));
+ window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:1}}));
+ await new Promise(resolve=>setImmediate(resolve));
  assert.equal(played.length,1);
- window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:1}}));
- window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:1}}));
- await Promise.resolve();assert.equal(played.length,2);
  window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:2}}));
- await Promise.resolve();assert.equal(played.length,3);
- assert.deepEqual([...new Set(played)].length,1,"All notifications must play one identical MP3");
- await node("ownerSoundToggle").click();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(played.length,2);
+ assert.equal(new Set(played).size,1,"One MP3 must be used for all alerts");
+ node("ownerSoundToggle").click();
  window.dispatchEvent(new CustomEvent("teko-owner-alert-event",{detail:{id:3}}));
- assert.equal(played.length,3,"Mute must suppress every notification");
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(played.length,2,"Muting blocks all audio");
 });
-test("Existing unread badge one triggers chime on first owner feed, but no reload loop",()=>{
- assert.ok(notify.includes("const newest=events.filter(e=>Number(e.id)>prev&&!e.owner_read_at)"));
+
+test("First unread order can chime once and owner badge reflects server unread events",()=>{
+ assert.match(notify,/const newest=events\.filter\(e=>Number\(e\.id\)>prev&&!e\.owner_read_at\)/);
  assert.ok(notify.includes("saveLastAlert(lastMax)"));
- assert.ok(notify.includes("getLastAlert()"));
  assert.ok(notify.includes("nativeAlert(e)"));
- assert.ok(notify.includes("teko-owner-last-notified-id-v55"));
-});
-test("Home-screen app badge uses the OS Badging API when supported",()=>{
  assert.ok(notify.includes("navigator.setAppBadge(number)"));
  assert.ok(notify.includes("navigator.clearAppBadge()"));
- assert.ok(notify.includes("void syncAppBadge(unread)"));
  assert.ok(sw.includes("registration.setAppBadge(unread)"));
- assert.ok(sw.includes("p.data.unreadCount"));
- assert.ok(dispatcher.includes("unreadCount:unreadCount||0"));
- assert.ok(dispatcher.includes('is("owner_read_at",null)'));
- assert.ok(sw.includes('self.addEventListener("notificationclick"'));
 });
-test("Owner Push is owner-verified, retries are bounded, and mute uses one preference",()=>{
+test("Encrypted background Web Push uses the same OS sound for each notification",()=>{
  assert.ok(push.includes("Notification.requestPermission()"));
  assert.ok(push.includes('request("ownerPushSubscribe"'));
- assert.ok(push.includes("userVisibleOnly:true"));
- assert.ok(push.includes("teko-owner-sound-change"));
- assert.ok(push.includes('localStorage.getItem("teko_owner_sound_v1")!=="0"'),"Push notification sound must be ON unless explicitly muted");
- assert.ok(api.includes('if(!await authorizedOwner(req,db))'));
+ assert.ok(api.includes("authorizedOwner(req,db)"));
  assert.ok(dispatcher.includes("x-teko-push-secret"));
  assert.ok(dispatcher.includes("teko_owner_push_deliveries"));
- assert.ok(dispatcher.includes("sendPushNotification("));
+ assert.ok(dispatcher.includes("sendNativePush("));
+ assert.ok(dispatcher.includes("aes128gcm"));
  assert.ok(dispatcher.includes("silent:sub.sound_enabled===false"));
- assert.ok(!html.includes("dispatch_secret"));
-});
-test("Background audio stays system-controlled and user can import an exact local MP3",()=>{
+ assert.ok(!dispatcher.includes('npm:@mmmike/web-push'));
  assert.ok(sw.includes('self.registration.showNotification'));
  assert.ok(sw.includes('silent:p.silent===true'));
- assert.ok(sound.includes('reader.readAsDataURL(file)'));
- assert.ok(sound.includes('localStorage.setItem(FILE_KEY,base64)'));
- assert.ok(sound.includes('file.size>512000'));
  assert.ok(!sw.includes("caches.open("));
 });

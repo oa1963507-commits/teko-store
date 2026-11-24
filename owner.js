@@ -1,9 +1,10 @@
 /* TEKO STORE owner console — all order data is protected by server-side
-   JWT verification + TEKO_OWNER_UID. No tokens saved to disk or localStorage. */
+   JWT verification + TEKO_OWNER_UID. Owner refresh tokens are persisted after backend verification. */
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
 const config=window.TEKO_OWNER_CONFIG||{};
+const auth=window.TEKO_OWNER_AUTH;
 const project=String(config.projectUrl||"").replace(/\/+$/,"");
 const publicKey=String(config.publicKey||"");
 const fn=String(config.functionName||"teko-admin-orders");
@@ -17,6 +18,7 @@ const state={token:null,expiresAt:0,page:0,total:0,items:[],busy:false,customerP
 function tell(text){$("message").textContent=text;}
 function showLogin(message=""){
  state.token=null;state.expiresAt=0;state.items=[];
+ auth?.forget();
  window.dispatchEvent(new Event("teko-owner-signout"));
  $("loginPanel").hidden=false;$("appPanel").hidden=true;$("loginPassword").value="";
  $("loginStatus").textContent=message;
@@ -37,40 +39,29 @@ if(!configured){
  $("loginButton").disabled=true;
  $("loginStatus").textContent="التجهيز الفني لم يُفعّل بعد. لا تُدخل بيانات حسابك قبل اكتمال ربط Supabase.";
 }
-async function signin(email,password){
- const response=await fetch(project+"/auth/v1/token?grant_type=password",{
-  method:"POST",
-  headers:{"Content-Type":"application/json","apikey":publicKey},
-  body:JSON.stringify({email,password}),
-  cache:"no-store"
+// Shared owner API transport automatically renews the short-lived access JWT.
+async function ownerRequest(endpoint,body){
+ if(!auth)throw Error("تعذر تحميل خدمة جلسة المالك");
+ const send=token=>fetch(project+"/functions/v1/"+endpoint,{
+  method:"POST",headers:{"Content-Type":"application/json","apikey":publicKey,"Authorization":"Bearer "+token},
+  body:JSON.stringify(body),cache:"no-store"
  });
+ state.token=await auth.getToken();
+ let response=await send(state.token);
+ if(response.status===401){
+  try{state.token=await auth.refresh(true);response=await send(state.token);}
+  catch(error){if(!auth.hasSavedSession())showLogin("الجلسة غير صالحة. سجّل دخولك.");throw error;}
+ }
+ if(response.status===401){showLogin("الجلسة غير صالحة. سجّل دخولك.");throw Error("Session expired");}
  const data=await response.json().catch(()=>({}));
- if(!response.ok||!data.access_token)throw Error("تعذر تسجيل الدخول. راجع البريد وكلمة المرور وصلاحية الحساب.");
- return {token:data.access_token,expiresIn:Number(data.expires_in)||3600};
-}
-async function call(action,fields={}){
- if(!state.token||Date.now()>state.expiresAt)throw Error("انتهت الجلسة. سجّل دخولك مرة أخرى.");
- const response=await fetch(project+"/functions/v1/"+fn,{
-  method:"POST",
-  headers:{"Content-Type":"application/json","apikey":publicKey,"Authorization":"Bearer "+state.token},
-  body:JSON.stringify({action,...fields}),cache:"no-store"
- });
- const data=await response.json().catch(()=>({}));
- if(response.status===401){showLogin("انتهت الجلسة؛ سجّل دخولك مرة أخرى.");throw Error("انتهت الجلسة");}
  if(!response.ok)throw Error(data.error||"تعذر الاتصال بقاعدة الطلبات.");
  return data;
 }
-// Notification requests reuse the owner JWT, which stays inside this closure.
+async function call(action,fields={}){return ownerRequest(fn,{action,...fields});}
 window.TEKO_OWNER_NOTIFICATIONS_API=async(action,fields={})=>{
- if(!["ownerFeed","ownerRead","ownerPushKey","ownerPushSubscribe","ownerPushUnsubscribe"].includes(action))throw Error("Invalid action");
- if(!state.token||Date.now()>state.expiresAt)throw Error("Session expired");
- const response=await fetch(project+"/functions/v1/teko-order-notifications",{
-  method:"POST",headers:{"Content-Type":"application/json","apikey":publicKey,"Authorization":"Bearer "+state.token},
-  body:JSON.stringify({action,...fields}),cache:"no-store"
- });
- const data=await response.json().catch(()=>({}));
- if(!response.ok)throw Error(data.error||"Notification service unavailable");
- return data;
+ if(!["ownerFeed","ownerRead","ownerPushKey","ownerPushSubscribe","ownerPushUnsubscribe"].includes(action))
+  throw Error("Invalid action");
+ return ownerRequest("teko-order-notifications",{action,...fields});
 };
 function td(text){
  const cell=document.createElement("td");
@@ -501,16 +492,25 @@ $("loginForm").addEventListener("submit",async event=>{
  $("loginStatus").textContent="جارٍ التحقق من الحساب...";
  try{
   const email=$("loginEmail").value.trim(),password=$("loginPassword").value;
-  const session=await signin(email,password);
-  state.token=session.token;state.expiresAt=Date.now()+Math.max(60,session.expiresIn-60)*1000;
+  state.token=await auth.signIn(email,password);
   $("loginPassword").value="";
-  // Owner access is enforced server-side: login alone does not give admin access.
+  // Never persist a login until the backend verifies the user is the store owner.
   await call("list",{page:0,status:"all",search:""});
+  auth.confirmOwner();
   showApp();await list();
  }catch(error){showLogin("تعذر فتح لوحة المالك: "+error.message);}
  finally{btn.disabled=false;}
 });
-$("logoutButton").addEventListener("click",()=>showLogin("تم تسجيل الخروج من لوحة المالك."));
+$("logoutButton").addEventListener("click",async()=>{
+ const button=$("logoutButton");button.disabled=true;
+ try{
+  await window.TEKO_OWNER_PUSH_DISABLE?.();
+  await auth.signOut();
+ }finally{
+  showLogin("تم تسجيل الخروج من لوحة المالك.");
+  button.disabled=false;
+ }
+});
 $("filterForm").addEventListener("submit",event=>{event.preventDefault();state.page=0;list();});
 $("prevPage").addEventListener("click",()=>{if(state.page>0){state.page--;list();}});
 $("nextPage").addEventListener("click",()=>{if((state.page+1)*25<state.total){state.page++;list();}});
@@ -542,4 +542,28 @@ $("customerFilterForm").addEventListener("submit",event=>{event.preventDefault()
 $("prevCustomerPage").addEventListener("click",()=>{if(state.customerPage>0){state.customerPage--;loadCustomers();}});
 $("nextCustomerPage").addEventListener("click",()=>{if((state.customerPage+1)*25<state.customerTotal){state.customerPage++;loadCustomers();}});
 $("exportOrdersBtn").addEventListener("click",exportCurrentOrders);
+let restoringOwner=false;
+async function restoreOwner(){
+ if(!configured||!auth?.hasSavedSession()||restoringOwner||!$("appPanel").hidden)return;
+ restoringOwner=true;
+ $("loginStatus").textContent="جارٍ استعادة جلسة المالك...";
+ try{
+  if(!await auth.restore())return;
+  state.token=await auth.getToken();
+  // The backend must verify owner UID again before showing saved private data.
+  await call("list",{page:0,status:"all",search:""});
+  showApp();await list();
+ }catch{
+  $("loginStatus").textContent=auth.hasSavedSession()?
+   "تعذر الاتصال مؤقتًا؛ الجلسة محفوظة وسنعيد المحاولة.":
+   "تم إلغاء الجلسة من الخادم؛ سجّل دخولك مرة أخرى.";
+ }finally{restoringOwner=false;}
+}
+window.addEventListener("teko-owner-auth-revoked",()=>showLogin("تم إلغاء جلسة المالك من الخادم."));
+window.addEventListener("teko-owner-auth-remote-logout",()=>showLogin("تم تسجيل الخروج من تبويب آخر."));
+window.addEventListener("online",()=>void restoreOwner());
+document.addEventListener("visibilitychange",()=>{
+ if(document.visibilityState==="visible")void restoreOwner();
+});
+if(configured)void restoreOwner();
 })();

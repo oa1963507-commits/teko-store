@@ -21,3 +21,9 @@
  background:rgba(230,15,52,.08);
  box-shadow:0 0 0 1px rgba(255,255,255,.35);
 }
+
+/* A selected (but valid) design uses a neutral outline; only violations are red. */
+#designLayer .design.selected{
+ border-color:rgba(255,255,255,.94);
+ box-shadow:0 0 0 1px rgba(11,11,15,.65);
+}

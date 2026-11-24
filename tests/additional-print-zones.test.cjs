@@ -65,7 +65,7 @@ test("Old restrictions remain blocked outside new areas",()=>{
  const forbidden=[
   example("front",.5,.226),
   example("front",.29,.66,3,3),
-  example("back",.325,.15),
+  example("back",.290,.15),
   example("front",.16,.83,3,3),
   example("left",.37,.67,2.6,2.3),
   example("right",.65,.67,2.6,2.3)
@@ -96,8 +96,8 @@ test("Production blocking logic still rejects mixed illegal prints",()=>{
 });
 test("New visual guide stays optional and cannot change export files",()=>{
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
- const idxNew=html.indexOf('<script src="additional-print-zones.js?v=47">');
- const idxEditor=html.indexOf('<script src="app.js?v=47">');
+ const idxNew=html.indexOf('<script src="additional-print-zones.js?v=49">');
+ const idxEditor=html.indexOf('<script src="app.js?v=49">');
  assert.ok(idxNew>0&&idxEditor>idxNew,"Zone module must run before editor");
  assert.match(html,/id="additionalPrintZonesBtn"/);
  assert.match(code,/showTools&&showAdditionalZoneGuides/);
@@ -128,4 +128,44 @@ test("Moving screenshot 2 artwork completely below hood is permitted",()=>{
 test("Error box focuses rejected artwork, not the former whole hood ban",()=>{
  assert.match(code,/bounds:getBounds\(d\),issue:violations\(d\)\[0\]/);
  assert.doesNotMatch(code,/currentErrors=showTools\?designs\.filter\(d=>d\.view===view\)\.flatMap\(d=>violations\(d\)\)/);
+});
+
+test("Left and right upper-front logo boxes are valid at all hoodie sizes",()=>{
+ for(const size of Object.keys(SIZES))for(const cx of [.34,.66]){
+  const api=editor(size),d=example("front",cx,.316,12,12,size);
+  assert.equal(ext.match("front",api.getBounds(d))?.id,"front-upper-chest");
+  assert.deepEqual(api.violations(d),[],"front side "+cx+" size "+size);
+ }
+});
+test("Rear hood tip and upper-back prints independently pass at all sizes",()=>{
+ for(const size of Object.keys(SIZES)){
+  const api=editor(size);
+  for(const [cy,w,h,id] of [
+   [.282,1.5,1.5,"back-hood-outer"],[.400,12,12,"back-upper-yoke"]
+  ]){
+   const d=example("back",.5,cy,w,h,size);
+   assert.equal(ext.match("back",api.getBounds(d))?.id,id);
+   assert.deepEqual(api.violations(d),[]);
+  }
+ }
+});
+test("Spanning rear hood and upper-back seam remains invalid",()=>{
+ for(const size of Object.keys(SIZES)){
+  const api=editor(size),d=example("back",.5,.294,12,12,size);
+  assert.equal(ext.match("back",api.getBounds(d)),null);
+  assert.ok(api.violations(d).some(v=>v.label.includes("عابر بين قماش الكابيشو والظهر")));
+ }
+});
+test("Old protected seams outside the approved green remain blocked",()=>{
+ for(const size of Object.keys(SIZES)){
+  const api=editor(size);
+  for(const d of [
+   example("front",.218,.336,3,3,size),
+   example("front",.5,.201,3,3,size),
+   example("back",.29,.15,2.6,2.3,size)
+  ]){
+   assert.equal(ext.match(d.view,api.getBounds(d)),null);
+   assert.ok(api.violations(d).length>0);
+  }
+ }
 });

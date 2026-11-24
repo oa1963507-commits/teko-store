@@ -1,4 +1,4 @@
-/* TEKO STORE — five additional print islands from the approved hoodie references.
+/* TEKO STORE — five approved print islands; expanded green chest, hood and yoke.
    This file ONLY extends the original printable surfaces; it does not alter them.
    Coordinates are normalized to the existing 1122×1402 front/back mockups.
    All edges have a safety inset; final production calibration is still required. */
@@ -14,10 +14,12 @@
     [.413,.100],[.585,.100],[.609,.122],[.598,.147],
     [.563,.173],[.442,.173],[.407,.146],[.399,.123]
    ]),
-   make('front-upper-chest','الشريط العلوي للصدر',[
-    [.349,.243],[.654,.243],[.668,.251],[.668,.273],
-    [.336,.273],[.336,.251]
-   ],['خياطة الرقبة']),
+   make('front-upper-chest','أعلى الصدر بالكامل يمين ووسط وشمال',[
+    // Extended approved chest allows both outer logo positions.
+    [.275,.216],[.725,.216],[.748,.247],[.761,.317],
+    [.758,.370],[.736,.425],[.722,.450],[.278,.450],
+    [.264,.425],[.242,.370],[.239,.317],[.252,.247]
+   ],['خياطة الرقبة','خياطة الكتف']),
    make('front-pocket-panel','واجهة الجيب الأمامي',[
     [.363,.590],[.636,.590],[.674,.734],[.696,.753],
     [.678,.782],[.323,.782],[.304,.753],[.325,.734]
@@ -25,18 +27,16 @@
   ]),
   back:Object.freeze([
    make('back-hood-outer','الكابيشو من الخلف',[
-    // Follow the broad cloth panels above the pointed end of the hood;
-    // unlike the initial V46 guide, a medium centered logo now fits.
-    [.354,.086],[.637,.086],[.681,.111],[.690,.150],
-    [.673,.185],[.626,.223],[.577,.252],[.530,.278],
-    [.470,.278],[.422,.252],[.374,.223],[.328,.184],
-    [.312,.149],[.320,.111]
-   ],['الكابيشو']),
+    // Rear hood cloth surface, including its lower point.
+    [.354,.084],[.637,.084],[.685,.108],[.698,.148],
+    [.681,.189],[.640,.229],[.586,.263],[.542,.285],
+    [.505,.293],[.495,.293],[.457,.285],[.413,.263],
+    [.360,.229],[.318,.189],[.302,.149],[.314,.108]
+   ],['الكابيشو','خياطة أسفل الكابيشو']),
    make('back-upper-yoke','أعلى الظهر أسفل الكابيشو',[
-    // A separate cloth surface BELOW the hood itself, including the
-    // customer-approved upper back panel; still no cross-surface prints.
-    [.338,.294],[.663,.294],[.668,.338],[.669,.424],
-    [.654,.456],[.346,.456],[.331,.424],[.331,.338]
+    // Upper back is independent from the hood panel.
+    [.337,.290],[.663,.290],[.680,.332],[.686,.416],
+    [.666,.495],[.334,.495],[.314,.416],[.320,.332]
    ],['خياطة أسفل الكابيشو'])
   ]),
   left:Object.freeze([]),

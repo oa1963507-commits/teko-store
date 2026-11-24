@@ -126,7 +126,7 @@ function violations(d){
  // Approved extra islands override ONLY their named former restriction.
  // Legacy torso/sleeve surfaces and all other stitch restrictions are preserved.
  const extraZone=window.TEKO_EXTRA_PRINT?.match(d.view,b)||null;
- const crossesHoodAndBack=d.view==='back'&&
+ const crossesHoodAndBack=d.view==='back'&&!extraZone&&
    b.y<areas.back[0].y+areas.back[0].h&&b.y+b.h>.294&&
    overlaps(b,areas.back[0]);
  const result=crossesHoodAndBack?

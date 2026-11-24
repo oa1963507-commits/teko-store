@@ -1,0 +1,116 @@
+/* TEKO STORE V48 — Public design gallery. Completely isolated from checkout and editor layouts. */
+#galleryPage[hidden],.gallery-dialog:not([open]){display:none!important}
+.gallery-page{
+ max-width:1420px;width:100%;margin:0 auto;padding:32px 24px 82px;
+ color:#f6f2f4;font-family:Cairo,Tahoma,Arial,sans-serif;
+ direction:rtl;min-height:65vh
+}
+.gallery-header{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;
+ gap:20px;margin:8px 0 27px;padding:31px 35px;
+ border:1px solid #532532;border-radius:24px;
+ background:radial-gradient(ellipse at 8% 0%,#5a1229,transparent 48%),linear-gradient(125deg,#1e1119,#0a090c);
+}
+.gallery-eyebrow{color:#ff637c;font-size:11px;font-weight:900;letter-spacing:1px;line-height:1.9}
+.gallery-header h1{font-size:clamp(30px,4.2vw,56px);line-height:1.28;margin:9px 0 11px;color:#fff;font-weight:900}
+.gallery-header h1 em{font-style:normal;color:#f72143}
+.gallery-header p{color:#d4c4cc;font-size:14px;line-height:1.95;max-width:610px;margin:0}
+.gallery-header .teko-cta{align-self:center;max-width:235px;white-space:normal}
+.gallery-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:15px;margin:0 0 18px}
+.gallery-search{position:relative;display:flex;align-items:center;flex:1 1 235px;max-width:430px}
+.gallery-search::before{content:"⌕";position:absolute;right:15px;color:#d9acb8;font-size:23px;pointer-events:none}
+#gallerySearch{
+ width:100%;height:49px;padding:9px 45px 9px 16px;border:1px solid #58313d;
+ border-radius:13px;background:#19141b;color:#fff;outline:none;font:700 13px Cairo,Tahoma,Arial,sans-serif
+}
+#gallerySearch::placeholder{color:#ad9aa4}#gallerySearch:focus{border-color:#f22b50;box-shadow:0 0 0 3px #fa294633}
+.gallery-categories{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gallery-category{
+ border:1px solid #543340;background:#231921;color:#eee5e8;cursor:pointer;
+ min-height:42px;padding:8px 16px;border-radius:999px;font:800 12px Cairo,Tahoma,Arial,sans-serif
+}
+.gallery-category[aria-pressed="true"]{background:#ed1738;border-color:#ed1738;color:white}
+.gallery-summary{color:#bdaeb5;font-size:12px;margin:5px 0 17px}
+.gallery-grid-public{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.gallery-card-public{
+ display:flex;flex-direction:column;min-width:0;overflow:hidden;
+ border:1px solid #4f2d38;border-radius:20px;background:#171218;
+ box-shadow:0 8px 25px #0004;transition:border-color .18s,transform .18s
+}
+.gallery-card-public:hover{border-color:#d72a4b;transform:translateY(-3px)}
+.gallery-artwork{
+ position:relative;aspect-ratio:1/1;min-height:0;overflow:hidden;
+ display:flex;justify-content:center;align-items:center;
+ padding:24px;background:radial-gradient(ellipse at 50% 44%,#501f31 0%,#22121c 58%,#100d12 100%)
+}
+.gallery-artwork::after{
+ content:"";position:absolute;inset:0;pointer-events:none;
+ background:linear-gradient(180deg,transparent 70%,#110d12aa);
+}
+.gallery-artwork.variant-1{background:radial-gradient(circle at 35% 20%,#5d1032,#1a0c16 64%,#0e0c10)}
+.gallery-artwork.variant-2{background:radial-gradient(circle at 75% 75%,#613b1c,#1b1019 67%,#0b0b0e)}
+.gallery-artwork.variant-3{background:radial-gradient(circle at 25% 70%,#2d3455,#21111e 70%,#0b0a0e)}
+.gallery-artwork.variant-4{background:radial-gradient(circle at 78% 27%,#4a1425,#160d15 68%,#08080b)}
+.gallery-artwork img{width:100%;height:100%;display:block;object-fit:contain;filter:drop-shadow(0 8px 12px #0008)}
+.gallery-artwork .gallery-lettering{
+ position:relative;z-index:1;font:900 clamp(23px,3.5vw,48px)/.98 Impact,'Arial Black',sans-serif;
+ text-align:center;letter-spacing:.3px;overflow-wrap:anywhere;max-width:100%;
+ color:#fff;text-shadow:0 7px 24px #f3154760;transform:skew(-5deg)
+}
+.gallery-artwork .gallery-type-chip{
+ position:absolute;top:15px;right:15px;z-index:2;background:#151116dc;color:#eee0e6;
+ padding:5px 10px;border:1px solid #694055;border-radius:999px;font-size:10px;font-weight:800
+}
+.gallery-card-info{padding:16px 17px 17px;display:flex;flex-direction:column;gap:7px;flex:1}
+.gallery-card-info h3{font:900 16px/1.55 Impact,'Arial Black',Cairo,sans-serif;letter-spacing:.35px;color:#fff;margin:0;direction:ltr;text-align:right}
+.gallery-card-info p{font-size:11px;line-height:1.7;color:#bbaab3;margin:0}
+.gallery-card-actions{display:flex;gap:8px;margin-top:auto;padding-top:12px}
+.gallery-card-actions button{flex:1;min-width:0;min-height:43px;border-radius:11px;font:900 11px Cairo,Tahoma,Arial,sans-serif;cursor:pointer;padding:7px}
+.gallery-card-actions .gallery-try{border:1px solid #ef1939;background:#ef1939;color:#fff}
+.gallery-card-actions .gallery-see{border:1px solid #704050;background:#281720;color:#f7eaf0}
+.gallery-card-actions button:hover{filter:brightness(1.12)}
+.gallery-card-actions button:disabled{opacity:.6;cursor:wait}
+.gallery-empty{border:1px dashed #714050;border-radius:18px;padding:36px 20px;text-align:center;color:#d0bec7;margin-top:15px}
+.gallery-empty[hidden]{display:none!important}
+.gallery-empty h2{font-size:18px;color:#fff;margin:0 0 8px}
+.gallery-empty p{margin:0;font-size:13px;line-height:1.8}
+.gallery-dialog{
+ width:min(540px,calc(100vw - 24px));max-height:min(91dvh,900px);
+ border:1px solid #734356;border-radius:22px;background:#1a131b;color:#fff;
+ padding:20px;overflow-y:auto;box-shadow:0 26px 90px #000b;
+ direction:rtl;font-family:Cairo,Tahoma,Arial,sans-serif
+}
+.gallery-dialog::backdrop{background:#050408df;backdrop-filter:blur(7px)}
+.gallery-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:12px}
+.gallery-dialog h2{font-size:20px;margin:0;font-weight:900;direction:ltr;text-align:right}
+.gallery-dialog-close{width:40px;height:40px;flex:0 0 40px;border:1px solid #775062;background:#34202b;color:#fff;border-radius:11px;font-size:24px;cursor:pointer}
+#galleryPreviewArt{border-radius:14px;overflow:hidden;aspect-ratio:1/1;margin-bottom:13px}
+#galleryPreviewArt .gallery-artwork{width:100%;height:100%}
+.gallery-dialog p{font-size:13px;color:#c8b8c2;line-height:1.85;margin:0 0 15px}
+.gallery-dialog .gallery-try{width:100%;border:0;border-radius:13px;min-height:51px;background:#f11d40;color:#fff;font:900 14px Cairo,Tahoma,Arial,sans-serif;cursor:pointer}
+.gallery-dialog .gallery-try:disabled{opacity:.65}
+.gallery-status{color:#d6bfc7;font-size:12px;min-height:20px;margin-top:8px}
+.gallery-status[hidden]{display:none!important}
+@media(max-width:1150px){.gallery-grid-public{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:850px){
+ .gallery-page{padding:15px 12px 116px}
+ .gallery-header{grid-template-columns:1fr;gap:14px;padding:25px 21px;margin-top:3px;border-radius:19px}
+ .gallery-header p{font-size:12px}.gallery-header .teko-cta{max-width:none;justify-self:start}
+ .gallery-grid-public{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+ .gallery-artwork{padding:17px}
+ .gallery-card-info{padding:12px;gap:4px}
+ .gallery-card-info h3{font-size:14px}
+ .gallery-card-actions{flex-direction:column;gap:6px}
+ .gallery-card-actions button{min-height:40px}
+ .gallery-artwork .gallery-lettering{font-size:clamp(19px,5vw,36px)}
+ .mobile-dock{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .mobile-dock a{font-size:10px}
+}
+@media(max-width:390px){
+ .gallery-grid-public{gap:8px}
+ .gallery-card-info{padding:10px}
+ .gallery-artwork .gallery-lettering{font-size:20px}
+ .gallery-category{padding:7px 11px}
+ .mobile-dock a{font-size:9px}
+}
+@media(prefers-reduced-motion:reduce){.gallery-card-public{transition:none}.gallery-card-public:hover{transform:none}}
